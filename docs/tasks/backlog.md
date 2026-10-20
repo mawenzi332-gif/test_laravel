@@ -34,7 +34,7 @@
 
 ---
 
-### [ ] TASK-001 — Bootstrap Laravel and Vue application stack
+### [x] TASK-001 — Bootstrap Laravel and Vue application stack
 
 **Цель:** создать рабочий skeleton Laravel 12 + Vue 3 SPA и зафиксировать утверждённый dependency baseline.
 

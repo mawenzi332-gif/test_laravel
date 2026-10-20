@@ -23,6 +23,7 @@
 
 # Test output and local logs
 /.phpunit.cache/
+/.phpunit.result.cache
 /coverage/
 npm-debug.log*
 yarn-debug.log*
