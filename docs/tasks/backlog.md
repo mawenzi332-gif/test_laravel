@@ -15,7 +15,7 @@
 
 ## Foundation
 
-### [?] TASK-000 — Verify repository governance and initialize SDD working logs
+### [x] TASK-000 — Verify repository governance and initialize SDD working logs
 
 **Цель:** подготовить репозиторий к управляемому Spec-Driven Development workflow.
 

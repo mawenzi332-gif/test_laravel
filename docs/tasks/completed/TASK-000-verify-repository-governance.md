@@ -2,7 +2,7 @@
 
 ## Status
 
-REVIEW
+COMPLETED
 
 ## Goal
 
@@ -43,9 +43,9 @@ REVIEW
 ## Acceptance criteria
 
 - [x] AC-1 Структура проекта, Git metadata, branch, remote и текущий working tree проверены; ограничения проверки явно зафиксированы.
-- [x] AC-2 TASK-000 имеет task-spec в `active/` с traceability, scope, acceptance criteria и планами реализации/проверки; её статус — REVIEW.
+- [x] AC-2 TASK-000 имеет принятую task-spec с traceability, scope, acceptance criteria и планами реализации/проверки.
 - [x] AC-3 `docs/implementation-log.md` и `docs/decisions.md` существуют и отражают фактическое состояние без фиктивных решений.
-- [x] AC-4 Backlog согласован с task-spec: TASK-000 находится в REVIEW, TASK-001 и последующие задачи остаются в BACKLOG.
+- [x] AC-4 Backlog согласован с task-spec: TASK-000 находится в COMPLETED, TASK-001 и последующие задачи остаются в BACKLOG.
 - [x] AC-5 Доступные проверки завершены; остаточные ограничения перечислены, blocker’ов, требующих решения пользователя, нет.
 
 ## Implementation plan
@@ -71,7 +71,7 @@ REVIEW
 - README: no — setup/поведение приложения не меняются.
 - OpenAPI: no.
 - Database diagram: no.
-- Other: marker `docs/tasks/backlog.md` установлен в REVIEW; task-spec и implementation log актуализированы, decisions log проверен.
+- Other: marker `docs/tasks/backlog.md` установлен в COMPLETED; task-spec перенесена в `completed/`, implementation log финализирован.
 
 ## Implementation notes
 
@@ -88,6 +88,7 @@ REVIEW
 - Невозможно определить, какие файлы попадут в первый commit или были бы tracked в существующей истории: commits пока отсутствуют, все файлы untracked. Перед первым пользовательским commit следует проверить состав staged changes.
 - По видимому workspace не найдено файлов локальных credentials или generated dependency/build directories; поиск по типичным secret markers дал только совпадения в документации и стандартных `.git/hooks` samples. Это не заменяет аудит будущего staged diff.
 - Внешняя доступность GitHub не проверялась: для TASK-000 она не нужна, remote URL доступен из локальной Git config.
+- После approval пользователя commit `00b5b57` присутствует и на `origin/main`; перед финализацией `git status` показывал чистое состояние.
 
 ## Decisions created
 
@@ -101,7 +102,8 @@ REVIEW
 
 - Подтверждены repository root, branch `main`, remote `origin`, отсутствие commits и текущее состояние файлов.
 - Проверены governance-документы, task lifecycle, `.gitignore`, структура `docs/` и начальные SDD-журналы.
-- Обновлены task-spec и implementation log; backlog оставлен в REVIEW, следующие задачи не активированы.
+- После явного approval task-spec переведена в COMPLETED и перенесена в `completed/`; backlog marker установлен в `[x]`, implementation log отмечен как принятый.
+- Пользовательский commit `00b5b57` виден на `origin/main`; финализация документации выполняется после него и остаётся локальным изменением.
 - Проверки Git/documentation выполнены; ограничение аудита tracked content до первого commit отражено выше.
 - Отклонений от SOW / Architecture / DB нет.
 
