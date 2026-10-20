@@ -1,0 +1,35 @@
+# Local environment and credentials
+/.env
+/.env.*
+!/.env.example
+/.aws/
+
+# PHP and frontend dependencies
+/vendor/
+/node_modules/
+
+# Generated frontend assets and dev-server marker
+/public/build/
+/public/hot
+
+# Laravel runtime files
+/storage/*.key
+/storage/logs/
+/storage/framework/cache/
+/storage/framework/sessions/
+/storage/framework/testing/
+/storage/framework/views/
+/bootstrap/cache/*.php
+
+# Test output and local logs
+/.phpunit.cache/
+/coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local editor and operating-system files
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db
