@@ -8,12 +8,35 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Validation\ValidationException;
+use Spatie\Image\Enums\Fit;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class Comment extends Model implements HasMedia
 {
     use HasFactory, InteractsWithMedia, SoftDeletes;
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('attachments')
+            ->useDisk('local')
+            ->storeConversionsOnDisk('local')
+            ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/gif', 'text/plain']);
+    }
+
+    public function registerMediaConversions(?Media $media = null): void
+    {
+        if ($media === null || ! str_starts_with((string) $media->mime_type, 'image/')) {
+            return;
+        }
+
+        $this->addMediaConversion('preview')
+            ->fit(Fit::Max, (int) config('comment-media.preview_width'), (int) config('comment-media.preview_height'))
+            ->format('jpg')
+            ->performOnCollections('attachments')
+            ->nonQueued();
+    }
 
     protected $fillable = [
         'user_id',

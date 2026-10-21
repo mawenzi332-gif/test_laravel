@@ -185,7 +185,7 @@ TASK-003.
 
 ---
 
-## [ ] TASK-005 — Comment read domain: sanitizer, media foundation, tree, sorting and list API
+## [x] TASK-005 — Comment read domain: sanitizer, media foundation, tree, sorting and list API
 
 **Legacy mapping:** old TASK-010–TASK-013.
 

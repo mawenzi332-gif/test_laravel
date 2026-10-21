@@ -2,6 +2,65 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-005 — Comment read domain: sanitizer, media foundation, tree, sorting and list API
+
+**Статус:** принято
+**Дата:** 2026-10-21
+
+### Что реализовано
+
+- Добавлен единый `CommentSanitizer` на Purify/HTMLPurifier с allowlist `a[href|title]`, `code`, `i`, `strong` и схемами HTTP/HTTPS.
+- Настроена Spatie collection `attachments` на private `local` disk и conversion preview в пределах 320×240 без upscale. Добавлены configurable image limit, TXT 100 KB limit, MIME/content validation и max 3 attachments rule.
+- GIF после штатной synchronous conversion обрабатывается через Imagick + Spatie Image: preview делается из первого кадра и сохраняется как статический JPEG.
+- Добавлен `GET /api/v1/comments`: pagination по 25 roots, сортировки по date/name/email ASC/DESC, normalized Guest/Registered author и полный упорядоченный subtree.
+- Добавлены root visibility и bottom-up tombstone pruning; deleted content/author/attachments не попадают в public response. OpenAPI включает query parameters и recursive resource schema.
+- Добавлены sanitizer, media, sorting, pagination, tree/tombstone и bounded-query tests.
+
+### Как это реализовано
+
+`CommentRepository` выбирает roots, включая deleted root только при наличии live descendant, сортирует эффективные guest/profile author values через ограниченный CASE expression и подгружает descendants одним batch-запросом. В PHP дерево собирается по `parent_id`; рекурсивное bottom-up pruning убирает deleted leaves, оставляя deleted ancestors только вокруг видимых descendants. Users и Media загружаются eager-load запросами.
+
+Purify policy хранится в `config/purify.php`. Spatie conversions используют Imagick, потому что Docker image содержит Imagick без GD. Для GIF добавлен listener на завершение `preview` conversion, который извлекает первый кадр и записывает JPEG preview обратно на private disk.
+
+### Основные изменённые области
+
+- `app/Comments/`, `app/Rules/`, `app/Http/Controllers/Api/V1/CommentController.php`
+- `app/Http/Requests/ListCommentsRequest.php`, `app/Http/Resources/CommentResource.php`, `app/Models/Comment.php`
+- `app/Providers/AppServiceProvider.php`, `routes/api.php`, `config/`
+- `tests/Unit/CommentSanitizerTest.php`, `tests/Feature/CommentReadApiTest.php`, `tests/Feature/CommentMediaFoundationTest.php`
+- `README.md`, `.env.example`, `docs/tasks/backlog.md`, `docs/tasks/active/TASK-005-comment-read-domain.md`
+
+### Проверки
+
+- `docker compose exec -T app php artisan test --compact` — passed: 39 tests, 218 assertions.
+- `docker compose exec -T app vendor/bin/pint --test` — passed: 60 files.
+- `docker compose exec -T app php artisan scramble:export --path=/tmp/task-005-openapi.json --fail-on-unknown` — passed; query parameters, response fields и recursive `CommentResource` проверены в exported JSON.
+- `git diff --check` — passed.
+
+### Документация
+
+- README: добавлены list endpoint, сортировки/пагинация и media settings.
+- OpenAPI: добавлены GET `/v1/comments`, query whitelist и recursive nested resource schema.
+- Другое: TASK-005 task-spec переведена в REVIEW, backlog marker установлен в `[?]`.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет.
+
+### Известные ограничения / нерешённые вопросы
+
+- Attachment read endpoints и подключение media/file validators к write flow входят в TASK-006.
+- Доступен PHP runtime в Docker app container; host PHP CLI отсутствует.
+
+### Предлагаемый commit
+
+`feat(TASK-005): implement comment read domain and list API`
+
+### Финализация после approval
+
+- Пользователь одобрил TASK-005; task-spec перенесена в `docs/tasks/completed/`, backlog marker установлен в `[x]`, статус записи — `принято`.
+- Commit не создавался; изменения готовы к пользовательскому commit.
+
 ## TASK-004 — Accounts, profile and publication abuse protection
 
 **Статус:** принято

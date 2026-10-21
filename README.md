@@ -86,6 +86,12 @@ Fortify предоставляет session-based endpoints:
 
 API описание обновляется Scramble и доступно по адресу <http://localhost:8080/docs/api>.
 
+## Public comments API
+
+`GET /api/v1/comments` returns 25 root comments per page with their complete nested reply trees. Root comments can be sorted by `date`, `name`, or `email` using `sort_by`, with `direction=asc|desc`; the default is `date` descending. Replies remain chronological. The response resolves registered authors from the current profile and represents deleted ancestors as content-free tombstones only when they contain visible descendants.
+
+Published attachments use the private `local` disk. `MEDIA_IMAGE_MAX_MB` sets the configurable image upload limit (default 10 MB); TXT files are limited to 100 KB. Synchronous previews use Imagick and fit within 320×240 without upscaling; GIF previews use their first frame.
+
 Письма локальной разработки отправляются в Mailpit; они видны в его UI. Чтобы остановить окружение, сохранив данные сервисов, используйте `docker compose down`. Команда `docker compose down -v` удаляет named volumes вместе с данными MySQL, Redis, RabbitMQ и Mailpit.
 
 Production assets собираются в Vite container. PHP tests и Pint можно запустить в общем PHP container:
