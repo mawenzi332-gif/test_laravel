@@ -1,611 +1,802 @@
-# Implementation Backlog
+# Implementation Backlog — Consolidated Delivery Plan
 
-> Статусы: `[ ]` BACKLOG · `[>]` ACTIVE · `[?]` REVIEW · `[x]` COMPLETED. `[x]` разрешён только после явного approval пользователя. Детальная декомпозиция создаётся progressively в `docs/tasks/active/TASK-XXX-*.md` по правилам `AGENTS.md`.
+Этот backlog заменяет прежнюю детальную нарезку TASK-003–TASK-044.
+
+Причина изменения: TASK-000–TASK-002 уже завершены и приняты, а оставшийся implementation scope консолидирован в более крупные vertical review-blocks для ускоренной реализации без потери требований SOW / Architecture / DB Design.
+
+## Статусы
+
+```text
+[ ] BACKLOG    — задача ещё не активирована
+[>] ACTIVE     — задача взята в работу, task-spec находится в docs/tasks/active/
+[?] REVIEW     — реализация закончена агентом и ожидает review владельца проекта
+[x] COMPLETED  — владелец проекта принял задачу; task-spec перенесён в docs/tasks/completed/
+```
 
 ## Общие правила
 
-- Product behaviour определяется `docs/main/SOW.md`.
-- Approved implementation decisions определяются `docs/main/architecture.md`.
-- Physical DB/query design определяется `docs/main/DB.md`.
-- Этот backlog не переопределяет основные спецификации.
-- README, OpenAPI и operational documentation обновляются инкрементально в тех задачах, которые меняют соответствующее поведение.
-- Каждый proposed Git commit должен быть на английском и содержать номер задачи в формате `type(TASK-XXX): summary`.
+- Источники истины: `docs/main/SOW.md` → `docs/main/architecture.md` → `docs/main/DB.md`.
+- `AGENTS.md` определяет обязательный SDD workflow, lifecycle задач, review gate, Git policy и формат отчётности.
+- Одновременно по умолчанию активна только одна macro-task.
+- При активации агент создаёт отдельный task-spec в `docs/tasks/active/` и уже внутри него декомпозирует macro-task на implementation subtasks.
+- Старые TASK-003–TASK-044 больше не используются как самостоятельные task lifecycle units. Их номера сохранены внутри новых задач как `Legacy mapping` для traceability.
+- Каждая функциональная задача должна добавлять focused automated tests для реализуемого поведения. Нельзя откладывать всё тестирование на финальный quality block.
+- README, OpenAPI и другая затронутая документация поддерживаются инкрементально. Финальные documentation tasks являются consistency/audit pass, а не первым моментом написания документации.
+- Агент не делает `git commit`. После REVIEW владелец проекта либо возвращает замечания, либо явно пишет `APPROVED`. После approval агент финализирует task-spec, implementation log, backlog status и переносит task в `completed/`, после чего предлагает commit message. Commit выполняет владелец проекта.
+- Commit message должен быть на английском и содержать номер текущей macro-task: например `feat(TASK-006): implement comment publication lifecycle`.
 
 ---
 
-## Foundation
+# Completed foundation
 
-### [x] TASK-000 — Verify repository governance and initialize SDD working logs
+- [x] **TASK-000 — Verify repository governance and initialize SDD workflow**
+- [x] **TASK-001 — Bootstrap Laravel and Vue application stack**
+- [x] **TASK-002 — Build reproducible Docker development environment**
 
-**Цель:** подготовить репозиторий к управляемому Spec-Driven Development workflow.
-
-**Scope:**
-
-- проверить, что агент работает из `/home/elephpant/projects/test_laravel`;
-- проверить Git repository, current branch, `.gitignore` и working tree;
-- проверить наличие и структуру `docs/main/`, `docs/tasks/active/`, `docs/tasks/completed/`;
-- проверить `AGENTS.md` и этот backlog;
-- создать начальные `docs/implementation-log.md` и `docs/decisions.md`, если они ещё не существуют;
-- не менять approved specs.
-
-**Acceptance:** repository готов к task lifecycle из `AGENTS.md`; служебные документы существуют; нет случайно tracked secrets/generated garbage.
-
-**Dependencies:** none.
+Эти задачи приняты и не входят в оставшийся implementation scope.
 
 ---
 
-### [x] TASK-001 — Bootstrap Laravel and Vue application stack
+# Remaining implementation backlog
 
-**Цель:** создать рабочий skeleton Laravel 12 + Vue 3 SPA и зафиксировать утверждённый dependency baseline.
+## [ ] TASK-003 — Backend foundation: database, domain models and API conventions
 
-**Scope:** PHP 8.4, Laravel 12.x, Vue 3 Composition API, Router, Pinia, Axios, Vite, Bootstrap 5, Tiptap, Echo; backend dependencies из Architecture для Sanctum/Fortify, CAPTCHA, Purify, Media Library/Image, RabbitMQ, Reverb, Scramble; Pint/PHPUnit.
+**Legacy mapping:** old TASK-003–TASK-005.
 
-**Acceptance:** backend запускается, SPA собирается, dependencies совместимы, `.env.example` содержит required placeholders без secrets, formatter config committed.
+### Goal
 
-**Dependencies:** TASK-000.
+Создать корректную persistence/domain основу приложения и единые conventions REST API, поверх которых строятся все product flows.
 
----
+### Scope
 
-### [x] TASK-002 — Build reproducible Docker development environment
+#### Database
 
-**Цель:** воспроизводимое локальное окружение для разработки и проверки.
+Реализовать утверждённую MySQL schema из `docs/main/DB.md`:
 
-**Scope:** nginx, app/PHP-FPM, vite, mysql, redis, rabbitmq, queue-worker, reverb, mailpit; общий PHP image для app/worker/reverb с разными commands; required PHP extensions; persistent volumes where needed.
+- `users`;
+- `comments`;
+- standard Spatie `media`;
+- `password_reset_tokens`;
+- `failed_jobs`;
+- `migrations`.
 
-**Acceptance:** clean environment поднимается documented commands; Laravel соединяется с MySQL/Redis/RabbitMQ; worker, Reverb, Mailpit и Vite работают.
+Не создавать запрещённые/ненужные таблицы (`attachments`, `comment_closure`, DB sessions/cache/jobs/personal_access_tokens/CAPTCHA tables/comment_versions и т. п.).
 
-**Dependencies:** TASK-001.
+Реализовать:
 
----
+- PK/FK;
+- CHECK constraints;
+- timestamps precision;
+- `SoftDeletes` persistence fields;
+- approved indexes;
+- Guest/Registered invariant;
+- tree `parent_id + root_id` invariant;
+- deletion state/type invariant.
 
-### [ ] TASK-003 — Implement final MySQL schema and migrations
+#### Models
 
-**Цель:** перенести approved DB Design в реальные migrations.
+Реализовать/привести к спецификации:
 
-**Scope:** `users`, `comments`, Spatie `media`, `password_reset_tokens`, `failed_jobs`, `migrations`; approved FKs, CHECK constraints, indexes, timestamp precision; не создавать запрещённые/лишние tables (`attachments`, `comment_closure`, DB sessions/cache/jobs, PAT, captcha tables, comment versions).
+- `User`;
+- `Comment`;
+- relations;
+- `SoftDeletes`;
+- Media Library integration/morph map;
+- required casts.
 
-**Acceptance:** fresh migrate/rollback/re-migrate работает на MySQL; Guest/Registered, tree и deletion invariants защищены; schema соответствует `DB.md`.
+Registered author хранится только через `user_id`; author snapshots запрещены.
 
-**Dependencies:** TASK-002.
+#### API foundation
 
----
+Создать `/api/v1` foundation и единый error envelope с согласованными error codes.
 
-### [ ] TASK-004 — Implement Eloquent domain models and relations
+Ошибки API не должны раскрывать stack traces, credentials или sensitive internals.
 
-**Цель:** реализовать persistence model поверх утверждённой schema.
+### Acceptance criteria
 
-**Scope:** `User`, `Comment`, SoftDeletes, user/parent/tree relations, Media Library integration, attachment collection, casts, morph map; Registered author только через `user_id`, Guest author только через `guest_*`.
+- `migrate:fresh` успешно создаёт утверждённую schema.
+- Rollback/re-run migrations работают.
+- DB constraints реально предотвращают invalid Guest/Registered/tree/deletion states.
+- Eloquent relations соответствуют DB Design.
+- Нет лишних framework/product tables, противоречащих DB.md.
+- Единый JSON error format используется прикладным API.
+- Добавлены meaningful tests для schema/domain invariants и API error foundation.
+- README обновлён, если изменились setup/migration команды.
 
-**Acceptance:** Guest/Registered models работают без snapshots; media relation корректна; structural deleted nodes можно читать через deliberate `withTrashed()` query flow.
+### Dependencies
 
-**Dependencies:** TASK-003.
-
----
-
-## Backend platform and account flows
-
-### [ ] TASK-005 — Establish API foundation and unified error handling
-
-**Цель:** единые conventions REST API `/api/v1`.
-
-**Scope:** normalized error envelope и error codes для validation, CAPTCHA, auth, 401/403/404, files, rate limiting, external/internal failures; production-safe exception rendering.
-
-**Acceptance:** API errors предсказуемы, documented и не раскрывают stack traces/secrets/internal credentials.
-
-**Dependencies:** TASK-001.
-
----
-
-### [ ] TASK-006 — Implement Sanctum and Fortify authentication backend
-
-**Цель:** first-party SPA authentication.
-
-**Scope:** register, login, logout, forgot/reset password, CSRF cookie/session workflow, Redis sessions, password policy; без email verification/JWT/OAuth/remember-me.
-
-**Acceptance:** account flows работают end-to-end, duplicate email rejected, password reset mail flow работает, session хранится в Redis.
-
-**Dependencies:** TASK-003, TASK-005.
+TASK-000–002 completed.
 
 ---
 
-### [ ] TASK-007 — Implement profile API and current-author behaviour
+## [ ] TASK-004 — Accounts, profile and publication abuse protection
 
-**Цель:** minimal authenticated profile и User-as-source-of-truth для Registered comments.
+**Legacy mapping:** old TASK-006–TASK-009.
 
-**Scope:** `GET /api/v1/me`, `PATCH /api/v1/me`; name/email/home_page validation; profile update меняет только `users`; интеграция cache invalidation после TASK-020.
+### Goal
 
-**Acceptance:** profile update не переписывает comments; существующие Registered comments читают новые данные User; duplicate email rejected.
+Довести account lifecycle и user identity до рабочего SPA-oriented backend contract и реализовать обязательную abuse protection.
 
-**Dependencies:** TASK-006.
+### Scope
 
----
+#### Authentication
 
-### [ ] TASK-008 — Configure Redis-backed rate limiting
+Использовать Sanctum + Fortify для first-party SPA session authentication.
 
-**Цель:** обязательный anti-abuse слой.
+Реализовать approved API flows:
 
-**Scope:** configurable baseline limits для comment creation, registration, login, password recovery согласно Architecture; 429 через unified error envelope.
+- register;
+- login;
+- logout;
+- forgot password;
+- reset password.
 
-**Acceptance:** limits реально применяются через Redis и тестируются без смешивания ответственности с CAPTCHA.
+Настроить Redis sessions и CSRF/Sanctum flow.
 
-**Dependencies:** TASK-005, TASK-006.
+Убрать/не экспонировать как product features не требуемые SOW возможности Fortify, включая email verification, 2FA, passkeys и иные account features вне scope.
 
----
+#### Profile
 
-### [ ] TASK-009 — Integrate reCAPTCHA v2 for comment publication
+Реализовать:
 
-**Цель:** CAPTCHA на root/reply creation для Guest и Registered User.
+- `GET /api/v1/me`;
+- `PATCH /api/v1/me`.
 
-**Scope:** Google reCAPTCHA v2 Checkbox через approved Laravel integration; не добавлять CAPTCHA на auth flows; provider failures logged/mockable.
+Editable fields:
 
-**Acceptance:** comment creation без valid CAPTCHA невозможен; invalid/expired token даёт ожидаемый API error; tests могут fake provider.
+- name;
+- email;
+- optional home page.
 
-**Dependencies:** TASK-005.
+Registered comments впоследствии всегда должны читать текущие данные автора из `User`.
 
----
+#### Rate limiting
 
-### [ ] TASK-010 — Implement centralized comment HTML sanitization
+Через Redis/Laravel RateLimiter реализовать configurable limits для:
 
-**Цель:** единая backend source-of-truth sanitization policy.
+- comment publication;
+- registration;
+- login;
+- password recovery.
 
-**Scope:** `CommentSanitizer` поверх Purify/HTMLPurifier; разрешить только approved tags/attributes и HTTP/HTTPS links; одинаковая policy для create/update/preview; сохранять только sanitized `body_html`.
+#### CAPTCHA
 
-**Acceptance:** allowed formatting сохраняется; scripts/event handlers/styles/dangerous schemes/unsupported markup безопасно удаляются или нормализуются; unit test существует.
+Настроить Google reCAPTCHA v2 Checkbox через выбранный package для будущих root/reply publication requests.
 
-**Dependencies:** TASK-001.
+CAPTCHA не добавлять на registration/login/reset, если этого не требует SOW.
 
----
+### Acceptance criteria
 
-## Media and comment read model
+- Registration/Login/Logout работают через SPA-friendly session flow.
+- Password reset backend flow работает в local environment.
+- `/api/v1/me` корректно читает/обновляет profile.
+- Duplicate email отклоняется.
+- Session state хранится в Redis.
+- Неавторизованный доступ получает согласованную API error response.
+- Required rate limiters используют Redis и возвращают нормализованный 429.
+- CAPTCHA validation integration готова к использованию comment publication flow.
+- Не требуемые Fortify account features не становятся частью product UI/API contract.
+- Добавлены focused feature tests auth/profile/rate-limit/CAPTCHA validation integration.
+- README/OpenAPI актуализируются по мере появления public contract.
 
-### [ ] TASK-011 — Implement attachment and media backend foundation
+### Dependencies
 
-**Цель:** безопасный lifecycle опубликованных attachments.
-
-**Scope:** Spatie Media Library на private disk; 0–3 mixed JPG/JPEG/PNG/GIF/TXT; actual content/MIME/decode validation; configurable image limit, TXT 100 KB; original + ≤320×240 no-upscale preview; GIF static preview fallback; synchronous conversions; compensating cleanup/logging.
-
-**Acceptance:** allowed formats работают, invalid/4th files rejected, previews корректны, private storage безопасен, orphan cleanup предусмотрен и GIF covered integration test.
-
-**Dependencies:** TASK-004, TASK-005.
-
----
-
-### [ ] TASK-012 — Implement CommentRepository tree pagination and sorting
-
-**Цель:** основной concrete query layer без generic repository abstraction.
-
-**Scope:** 25 visible roots/page; full subtree; mixed Guest/Registered sorting by User Name/E-mail/Date ASC/DESC; stable secondary `id`; root visibility with deleted descendants; descendants via `root_id IN (...)`; PHP tree assembly; chronological replies; bottom-up tombstone pruning; whitelist sort mapping.
-
-**Acceptance:** pagination/sorting/tree semantics соответствуют specs, deleted structural nodes работают, query count не зависит линейно от depth/node count, N+1 отсутствует.
-
-**Dependencies:** TASK-004.
-
----
-
-### [ ] TASK-013 — Implement comment list endpoint and API resources
-
-**Цель:** нормализованный public API representation tree.
-
-**Scope:** `GET /api/v1/comments`, ListCommentsRequest, CommentCollection/Resource; unified `author`; pagination metadata; tombstone suppression of body/author/homepage/media; `can_edit`/`can_delete` только как user-specific layer.
-
-**Acceptance:** Guest/authenticated responses корректны, current User data отражаются для Registered comments, invalid sort rejected, shared payload не содержит чужую authorization state.
-
-**Dependencies:** TASK-012, TASK-005.
+TASK-003.
 
 ---
 
-## Comment write flows
+## [ ] TASK-005 — Comment read domain: sanitizer, media foundation, tree, sorting and list API
 
-### [ ] TASK-014 — Implement root comment and reply creation
+**Legacy mapping:** old TASK-010–TASK-013.
 
-**Цель:** единый publication workflow для Guest и Registered User.
+### Goal
 
-**Scope:** `POST /api/v1/comments`; guest fields vs authenticated User source-of-truth; `parent_id`/`root_id` invariant; CAPTCHA; sanitizer; attachments; transaction/cleanup; cache invalidation hook; CommentCreated after successful persistence.
+Реализовать безопасную read-side основу comments domain: sanitized representation, attachment foundation, efficient tree queries и публичный list API.
 
-**Acceptance:** Guest/Registered root и arbitrary-depth reply создаются; author spoofing невозможен; tree lineage корректен; attachments и CAPTCHA работают.
+### Scope
 
-**Dependencies:** TASK-009, TASK-010, TASK-011, TASK-013.
+#### Sanitization
 
----
+Создать единый `CommentSanitizer` поверх Purify/HTMLPurifier.
 
-### [ ] TASK-015 — Implement comment preview backend
+Разрешить только утверждённый HTML subset и безопасные HTTP/HTTPS links. Одна policy должна позднее использоваться create/update/preview.
 
-**Цель:** preview без persistence.
+#### Media foundation
 
-**Scope:** `POST /api/v1/comments/preview`, `CommentController::preview`, PreviewCommentRequest, CommentSanitizer; no Comment/Media records; draft attachments остаются client-side.
+Настроить Spatie Media Library на private filesystem:
 
-**Acceptance:** sanitized preview соответствует publish policy и не создаёт server state/orphans.
+- collection attachments;
+- 0–3 media/comment rule foundation;
+- image/TXT validation primitives;
+- JPG/JPEG/PNG/GIF/TXT support;
+- configurable image limit;
+- TXT <=100 KB;
+- original + image preview <=320x240;
+- preserve aspect ratio;
+- no upscale;
+- synchronous preview conversion;
+- GIF static-preview fallback через Spatie Image + Imagick при необходимости;
+- cleanup/logging strategy без distributed transaction.
 
-**Dependencies:** TASK-010.
+#### CommentRepository / read queries
 
----
+Реализовать один concrete `CommentRepository` без generic CRUD/interface.
 
-### [ ] TASK-016 — Implement comment ownership authorization
+Поддержать:
 
-**Цель:** backend owner-only edit/delete protection.
+- 25 root comments/page;
+- full subtree каждого root;
+- replies не считаются pagination units;
+- Date/User Name/E-mail ASC/DESC;
+- default Date DESC;
+- stable secondary ordering по id;
+- mixed Guest/Registered sorting через current User + guest fields;
+- replies `created_at ASC, id ASC`;
+- `withTrashed()` structural loading;
+- deleted leaf pruning;
+- tombstone ancestors с visible descendants;
+- deleted root без live descendants не занимает root slot;
+- bounded query count без N+1.
 
-**Scope:** `CommentPolicy`; owner определяется только `authenticated user.id === comment.user_id`; Guest comments не получают persistent CRUD ownership.
+#### List API
 
-**Acceptance:** owner allowed, foreign user forbidden, Guest owner workflow отсутствует, ID tampering не обходит policy.
+Реализовать:
 
-**Dependencies:** TASK-004, TASK-006.
+- `GET /api/v1/comments`;
+- request validation/whitelisted sorting;
+- `CommentResource` / collection;
+- normalized `author`;
+- tombstone response suppression;
+- authorization flags могут добавляться позже, но shared public representation не должна быть user-specific.
 
----
+### Acceptance criteria
 
-### [ ] TASK-017 — Implement comment edit and attachment synchronization
+- Public comments API возвращает корректное nested tree.
+- Все sort modes и pagination работают стабильно.
+- Guest и Registered roots корректно смешиваются по author sorting без author snapshots.
+- Deleted structural behaviour соответствует SOW/DB Design.
+- Sanitizer блокирует XSS/dangerous URLs и сохраняет разрешённую разметку.
+- Media validation/conversion primitives подтверждены integration tests, включая GIF и no-upscale.
+- Normal page не создаёт N+1.
+- Добавлены focused tests sanitizer/media/read/tree/sorting/pagination.
+- OpenAPI для list endpoint поддерживается актуальным.
 
-**Цель:** atomic owner edit только Text + Attachments.
+### Dependencies
 
-**Scope:** `PATCH /api/v1/comments/{comment}`; `attachments_to_keep[]` + `new_attachments[]`; final count ≤3; remove/add/replace staging; author/tree ownership immutable; `edited_at`; cleanup; cache invalidation.
-
-**Acceptance:** owner edit работает, foreign/guest rejected через policy, 4th file rejected с учётом final state, author/tree нельзя изменить payload, Edited marker корректен.
-
-**Dependencies:** TASK-011, TASK-016.
-
----
-
-### [ ] TASK-018 — Implement logical deletion and tombstone behaviour
-
-**Цель:** owner delete без разрушения descendants.
-
-**Scope:** clear active media, `deletion_type=user`, SoftDelete, commit, cache invalidation; stored body/author data физически не занулять; public resource/repository применяют tombstone semantics.
-
-**Acceptance:** deleted leaf исчезает; deleted ancestor/root с live descendants остаётся tombstone; descendants сохраняются; tombstone не раскрывает content/author/media.
-
-**Dependencies:** TASK-012, TASK-016, TASK-017.
-
----
-
-### [ ] TASK-019 — Implement safe attachment read endpoints
-
-**Цель:** безопасная выдача original/preview media.
-
-**Scope:** `GET /api/v1/attachments/{attachment}` и `/preview`; mutation endpoints не добавлять; TXT headers `text/plain; charset=UTF-8`, attachment disposition, nosniff; deleted media недоступна.
-
-**Acceptance:** images/TXT выдаются корректно и безопасно, uploaded content не исполняется, missing/deleted media возвращает нормализованную ошибку.
-
-**Dependencies:** TASK-011, TASK-018.
-
----
-
-### [ ] TASK-020 — Implement Redis comment page/tree cache
-
-**Цель:** practical Redis cache с generation invalidation.
-
-**Scope:** `comments:list:version`; key `comments:v{version}:{sort}:{direction}:page:{page}`; configurable ~60s TTL; invalidate after create/update/delete/attachment/profile update; cached payload public only.
-
-**Acceptance:** repeated reads hit cache; mutations/profile update immediately switch generation; no cross-user authorization leakage.
-
-**Dependencies:** TASK-007, TASK-013, TASK-014, TASK-017, TASK-018.
+TASK-003. TASK-004 нужен для полноценного Registered author behaviour, но часть read/media implementation может быть подготовлена после TASK-003.
 
 ---
 
-## Async and realtime
+## [ ] TASK-006 — Comment publication lifecycle: create, preview, ownership, edit, delete and attachment reads
 
-### [ ] TASK-021 — Implement application event and RabbitMQ queue workflows
+**Legacy mapping:** old TASK-014–TASK-019.
 
-**Цель:** реальное использование Laravel Events/Queue/RabbitMQ.
+### Goal
 
-**Scope:** `CommentCreated`; queues `broadcasts` и `mail`; password-reset mail + queued broadcasting; retries/backoff; `failed_jobs`; repeated-delivery tolerance.
+Закрыть полный synchronous Comment CRUD/publication vertical slice для Guest и Registered пользователей.
 
-**Acceptance:** RabbitMQ реально получает jobs, worker обрабатывает их, terminal failures фиксируются, retry policy работает.
+### Scope
 
-**Dependencies:** TASK-006, TASK-014.
+#### Create / reply
 
----
+Реализовать `POST /api/v1/comments` для root и reply.
 
-### [ ] TASK-022 — Implement Reverb realtime backend
+Guest:
 
-**Цель:** WebSocket notification новых root/replies.
+- guest name/email;
+- optional home page;
+- no persistent ownership.
 
-**Scope:** `CommentCreated → queued broadcast → RabbitMQ → worker → Reverb`; channels/payload; realtime edit/delete не добавлять.
+Registered:
 
-**Acceptance:** новый root/reply вызывает событие и активный client может получить его без page reload.
+- author определяется authenticated User;
+- guest author payload запрещён;
+- author spoofing невозможен.
 
-**Dependencies:** TASK-021.
+Common:
 
----
+- required CAPTCHA;
+- sanitizer;
+- attachment validation/persistence;
+- `root_id = parent.root_id ?? parent.id`;
+- parent/root immutable после create;
+- arbitrary logical depth.
 
-## Frontend application
+#### Preview
 
-### [ ] TASK-023 — Implement Vue SPA shell, Router, Axios and auth store
+`POST /api/v1/comments/preview`:
 
-**Цель:** frontend foundation.
+- та же sanitization policy;
+- без Comment/Media persistence;
+- draft attachments остаются browser-side.
 
-**Scope:** routes `/`, `/login`, `/register`, `/forgot-password`, `/reset-password/:token`, `/profile`; Pinia только shared auth state; Axios/Sanctum CSRF/session integration; API modules.
+#### Authorization
 
-**Acceptance:** SPA navigation без full reload, auth initialization after refresh, protected profile behaviour корректно.
+`CommentPolicy` для owner update/delete.
 
-**Dependencies:** TASK-006, TASK-007.
+Guest comments не получают persistent owner CRUD.
 
----
+#### Edit
 
-### [ ] TASK-024 — Implement frontend authentication and profile UI
+`PATCH /api/v1/comments/{comment}`:
 
-**Цель:** account workflows в SPA.
+- только text + attachments;
+- author/tree ownership immutable;
+- atomic final attachment set через keep/new semantics;
+- max final count 3;
+- `edited_at` после реального edit.
 
-**Scope:** Login/Register/Forgot/Reset/Profile pages; profile name/email/home_page; loading/validation/success states.
+#### Delete
 
-**Acceptance:** все account flows работают с backend; profile updates auth state и отражается на последующих comment reads.
+`DELETE /api/v1/comments/{comment}`:
 
-**Dependencies:** TASK-023.
+- owner-only;
+- clear active media;
+- `deletion_type=user`;
+- SoftDelete;
+- descendants сохраняются;
+- public read layer показывает tombstone только когда нужен structural ancestor.
 
----
+#### Attachment reads
 
-### [ ] TASK-025 — Implement frontend comment list, sorting, pagination and recursive tree
+Реализовать:
 
-**Цель:** основной read UI.
+- original/read endpoint;
+- preview endpoint;
+- safe TXT headers;
+- deny inactive/deleted media.
 
-**Scope:** CommentsPage/List/Tree/recursive Node/Sort/pagination; 25 roots; all root sort modes; chronological replies; tombstone/Edited visuals; capped indentation + hierarchy line for deep mobile trees.
+Отдельные attachment mutation endpoints не создавать: add/remove/replace происходят через Comment create/update.
 
-**Acceptance:** sorting/pagination/tree работают без reload, deep nesting usable, tombstones корректны desktop/mobile.
+### Acceptance criteria
 
-**Dependencies:** TASK-013, TASK-023.
+- Guest/Registered root publication работает.
+- Replies любой глубины работают.
+- CAPTCHA обязательна именно для publication.
+- Preview не создаёт server-side draft data.
+- Owner edit/delete работает; foreign user получает 403; Guest ownership отсутствует.
+- Attachment add/remove/replace и cleanup работают.
+- Tombstone behaviour корректно после delete.
+- Secure attachment read endpoints работают.
+- `can_edit/can_delete` корректно формируются без попадания user-specific values в shared cache payload.
+- Добавлен полноценный набор feature/integration tests критичного lifecycle.
+- OpenAPI актуализирован для write/preview/attachment routes.
 
----
+### Dependencies
 
-### [ ] TASK-026 — Implement comment editor, create/reply forms and draft attachments
-
-**Цель:** publication UI для Guest/Registered User.
-
-**Scope:** guest author fields editable; registered author fields readonly from auth state; Tiptap approved controls only; CAPTCHA; draft `File[]`; add/remove/replace/local image preview; no temporary upload API.
-
-**Acceptance:** Guest/Registered создают root/reply без reload; registered author cannot be edited; attachment draft flow не создаёт server state.
-
-**Dependencies:** TASK-014, TASK-023.
-
----
-
-### [ ] TASK-027 — Implement frontend comment preview
-
-**Цель:** user-facing pre-publication preview.
-
-**Scope:** backend sanitized HTML + client-side draft attachment representation; author preview; no draft upload/persistence.
-
-**Acceptance:** preview близок к published rendering, XSS не исполняется, cancel не оставляет server state.
-
-**Dependencies:** TASK-015, TASK-026.
-
----
-
-### [ ] TASK-028 — Implement frontend edit and delete flows
-
-**Цель:** owner CRUD UI.
-
-**Scope:** controls по `can_edit/can_delete`; staged text/attachment edit + single PATCH; delete confirmation + refresh; author fields immutable.
-
-**Acceptance:** owner edit/delete работает, foreign/guest owner controls отсутствуют, Edited/tombstone/tree state корректно обновляются.
-
-**Dependencies:** TASK-017, TASK-018, TASK-025.
-
----
-
-### [ ] TASK-029 — Implement attachment display, TXT download and image viewer UX
-
-**Цель:** законченный published attachment UX.
-
-**Scope:** display previews, Bootstrap Modal image viewer, safe TXT action, user-friendly file errors, responsive layout.
-
-**Acceptance:** image preview/original viewing и TXT access работают безопасно на desktop/mobile.
-
-**Dependencies:** TASK-019, TASK-025.
+TASK-004, TASK-005.
 
 ---
 
-### [ ] TASK-030 — Implement frontend realtime reconciliation
+## [ ] TASK-007 — Redis cache, RabbitMQ queues and realtime comments
 
-**Цель:** обновлять comments page после `CommentCreated`.
+**Legacy mapping:** old TASK-020–TASK-022.
 
-**Scope:** Laravel Echo/Reverb subscription; debounce; REST refetch current page; не вручную вставлять node в sorted/paginated tree; realtime edit/delete не добавлять.
+### Goal
 
-**Acceptance:** второй client видит новые root/reply без manual refresh, event bursts не создают request storm, REST остаётся source of truth.
+Реализовать обязательные infrastructure integrations как реальные product flows, а не просто поднятые containers.
 
-**Dependencies:** TASK-022, TASK-025.
+### Scope
 
----
+#### Redis comment cache
 
-### [ ] TASK-031 — Complete client-side validation and UX states
+Кэшировать public comment pages/trees через generation key strategy:
 
-**Цель:** понятный и устойчивый пользовательский интерфейс без расширения scope.
+- `comments:list:version`;
+- versioned page keys;
+- configurable TTL.
 
-**Scope:** client validation for UX, loading/submitting/empty/error states, CAPTCHA/file errors, Edited/Deleted visuals, double-submit prevention, responsive critical flows.
+Invalidation после:
 
-**Acceptance:** основные сценарии понятны и usable; backend validation остаётся authoritative.
+- create;
+- edit;
+- delete;
+- attachment modification;
+- profile update.
 
-**Dependencies:** TASK-024–TASK-030.
+User-specific authorization metadata не хранить в shared cache.
 
----
+#### Events / RabbitMQ
 
-## API documentation, observability and quality
+Реализовать `CommentCreated` after successful persistence.
 
-### [ ] TASK-032 — Complete OpenAPI documentation and runtime contract verification
+RabbitMQ — фактический Laravel Queue broker.
 
-**Цель:** OpenAPI 3.1 соответствует фактическому REST API.
+Минимальные queues:
 
-**Scope:** Scramble docs для comments/auth/profile/attachments, pagination/sorting, validation, authorization, errors; schema generation verification. Документация API должна обновляться инкрементально и в предыдущих API tasks, здесь — финальный consistency pass.
+- broadcasts;
+- mail.
 
-**Acceptance:** generated schema отражает реальные routes/requests/responses/auth/error envelope и проходит CI check.
+Настроить retries/backoff, `failed_jobs`, tolerant repeated delivery.
 
-**Dependencies:** backend API tasks through TASK-022.
+Проверить/исправить текущую `default queue` topology warning в рамках утверждённой архитектуры.
 
----
+Password-reset mail должен использовать реальный async queue flow в финальном состоянии.
 
-### [ ] TASK-033 — Complete operational logging and sensitive-data safeguards
+#### Realtime
 
-**Цель:** достаточная диагностируемость без утечки sensitive data.
+Реализовать pipeline:
 
-**Scope:** logs для uploads/image processing/media cleanup/RabbitMQ/broadcast/mail/CAPTCHA/unexpected failures; не логировать passwords/session cookies/reset tokens/CAPTCHA secrets/credentials.
+`CommentCreated -> queued broadcast -> RabbitMQ -> worker -> Reverb -> Echo`.
 
-**Acceptance:** critical failures диагностируемы, sensitive values отсутствуют в логах.
+Frontend reconciliation strategy:
 
-**Dependencies:** TASK-009, TASK-011, TASK-021, TASK-022.
+- receive event;
+- debounce;
+- REST refetch current comments page;
+- не вставлять node вручную в sorted/paginated tree.
 
----
+Realtime edit/delete не реализовывать.
 
-### [ ] TASK-034 — Implement automated backend test suite for critical flows
+### Acceptance criteria
 
-**Цель:** доказать критические product/security/data behaviours.
+- Cache hit/invalidation behaviour доказано tests/integration checks.
+- Profile update меняет отображаемого автора/sorting без stale cache.
+- RabbitMQ получает реальные app jobs.
+- Worker успешно обрабатывает broadcasts/mail.
+- Failed jobs/retries работают согласно architecture.
+- Второй клиент получает CommentCreated и refetch'ит REST source of truth.
+- Queue/Reverb больше не считаются «готовыми» только по container status; есть functional evidence.
+- README обновлён по queue/cache/WebSocket commands и troubleshooting.
 
-**Scope:** Guest/Registered root+reply, validation/CAPTCHA, auth/profile, ownership, delete/tombstones, sanitizer/XSS/dangerous URLs, attachments/limits/conversions/cleanup/GIF, pagination/sorting/stability/reply order/mixed authors, cache-relevant profile changes, attachment access; минимум один meaningful unit test.
+### Dependencies
 
-**Acceptance:** reproducible test suite проходит; external CAPTCHA/SMTP fake; tests не зависят от реальных сторонних сервисов.
-
-**Dependencies:** all relevant backend features.
-
----
-
-### [ ] TASK-035 — Verify frontend critical behaviour end-to-end
-
-**Цель:** системно проверить SPA integration.
-
-**Scope:** auth/profile, comments read/sort/page, create/reply, preview, formatting, files, edit/delete/tombstone, realtime, validation/errors, responsive behaviour; automation по возможности без создания чрезмерной testing platform.
-
-**Acceptance:** все обязательные SPA flows работают без full reload там, где требуется.
-
-**Dependencies:** TASK-023–TASK-031.
-
----
-
-## Middle+ engineering requirements
-
-### [ ] TASK-036 — Perform and document performance analysis
-
-**Цель:** выполнить обязательный Middle+ performance review.
-
-**Scope:** Laravel Debugbar/equivalent, query logs, MySQL EXPLAIN; query count, N+1, User eager loading/JOIN, root/descendant queries, mixed author sorting/filesort, pagination, tree/media loading, cache behaviour, large responses, file handling/heavy endpoints; проверить необходимость optional `(root_id, deleted_at)` index данными, а не speculative optimization.
-
-**Acceptance:** сохранён понятный performance report с измерениями, EXPLAIN/выводами, найденными и исправленными проблемами; normal comments page не имеет N+1; product model не ломается ради synthetic benchmark.
-
-**Dependencies:** TASK-020, TASK-034.
+TASK-004, TASK-006.
 
 ---
 
-### [ ] TASK-037 — Implement GitHub Actions CI
+## [ ] TASK-008 — SPA accounts and profile
 
-**Цель:** базовый CI pipeline.
+**Legacy mapping:** old TASK-023–TASK-024.
 
-**Scope:** composer install, npm ci, Pint check, PHPUnit, npm build, OpenAPI check; integration services MySQL/Redis/RabbitMQ; external CAPTCHA/SMTP fake.
+### Goal
 
-**Acceptance:** clean checkout проходит CI, failures блокируют success.
+Превратить текущий Vue placeholder в реальную SPA foundation и закрыть account/profile UX.
 
-**Dependencies:** TASK-032, TASK-034.
+### Scope
 
----
+Настроить:
 
-### [ ] TASK-038 — Build production Docker image and topology
+- Axios API client + Sanctum CSRF/session handling;
+- Vue Router application routes;
+- Pinia только для shared auth state;
+- auth initialization after reload;
+- `/login`;
+- `/register`;
+- `/forgot-password`;
+- `/reset-password/:token`;
+- `/profile`.
 
-**Цель:** reproducible production container build.
+Profile UI редактирует name/email/home page.
 
-**Scope:** multi-stage Node builder → static Vite assets → PHP runtime; no Vite dev server in production; Nginx/PHP-FPM/Reverb/worker integration and persistent storage expectations.
+Добавить понятные loading/error/submission states и client validation как UX layer поверх backend validation.
 
-**Acceptance:** production image/stack собирается из clean repository и запускает приложение без development-only runtime dependency.
+### Acceptance criteria
 
-**Dependencies:** TASK-031, TASK-002.
+- Registration/Login/Logout/Reset/Profile работают end-to-end из SPA без full page reload.
+- Refresh browser восстанавливает auth state.
+- Protected profile UX корректно обрабатывает unauthenticated user.
+- Backend validation/error envelope нормально отображается.
+- Profile update немедленно обновляет current user state.
+- Добавлены разумные frontend/component tests либо documented manual verification, если выбранная frontend test strategy ограничена; backend flows уже должны иметь automated coverage.
 
----
+### Dependencies
 
-### [ ] TASK-039 — Deploy a testable environment and document cloud deployment
-
-**Цель:** предоставить реально разворачиваемое приложение для тестирования и выполнить cloud/deployment requirement.
-
-**Scope:** preferred low-cost Linux VM/OCI reference or suitable VPS/VDS; Nginx+TLS, PHP-FPM, static SPA, Reverb, MySQL, Redis, RabbitMQ, worker, persistent media/DB, external SMTP; core logic provider-agnostic.
-
-**Acceptance:** существует тестируемое deployment environment либо выбранный согласованный hosting target развёрнут по README; deployment воспроизводим; container recreation не уничтожает persistent data; WebSocket/queue/cache работают.
-
-**Dependencies:** TASK-038.
-
----
-
-### [ ] TASK-040 — Document scaling strategy for 1M comments and 100k users/day
-
-**Цель:** выполнить обязательное Middle+ описание масштабирования без premature high-load implementation.
-
-**Scope:** stateless backend + LB, MySQL indexes/query optimization/vertical/read replicas when justified, offset→keyset path, full subtree→partial/lazy loading, Redis HA path, RabbitMQ workers/HA, multi-node Reverb with Redis/LB, local files→S3-compatible storage→optional CDN.
-
-**Acceptance:** README/technical docs честно отделяют current implementation от future evolution и покрывают 1,000,000 comments / 100,000 users per day scenario.
-
-**Dependencies:** TASK-036.
+TASK-004.
 
 ---
 
-### [ ] TASK-041 — Produce MySQL Workbench-compatible database diagram
+## [ ] TASK-009 — Comments SPA: tree, editor, attachments, CRUD and realtime UX
 
-**Цель:** схема БД соответствует фактическим migrations.
+**Legacy mapping:** old TASK-025–TASK-031.
 
-**Scope:** users/comments, self parent/root relations, User→Comments, Spatie media logical polymorphic relation, password_reset_tokens, failed_jobs, migrations, keys/indexes; не изображать polymorphic relation как выдуманный physical FK.
+### Goal
 
-**Acceptance:** diagram отражает final implementation и не содержит старых snapshots/несуществующих tables.
+Реализовать весь пользовательский comments surface в Vue SPA поверх готового backend contract.
 
-**Dependencies:** TASK-003 and final schema state.
+### Scope
+
+#### Read UI
+
+- comments page;
+- recursive CommentNode/tree;
+- 25-root pagination;
+- sorting controls;
+- replies chronological;
+- tombstones;
+- Edited state;
+- capped indentation + hierarchy indicator для deep/mobile tree.
+
+#### Publication UI
+
+Guest form:
+
+- editable name/email/home page;
+- text;
+- CAPTCHA;
+- attachments.
+
+Registered form:
+
+- current profile fields read-only;
+- text;
+- CAPTCHA;
+- attachments.
+
+Tiptap toolbar только для утверждённого formatting subset.
+
+Draft attachments browser-side `File[]`:
+
+- add/remove/replace;
+- local image preview;
+- no temporary server upload.
+
+#### Preview / owner CRUD
+
+- publication preview;
+- owner edit text/attachments;
+- delete confirmation;
+- attachment original/preview/TXT UX;
+- Bootstrap Modal image viewer.
+
+#### Realtime / UX
+
+- Echo/Reverb subscription;
+- debounced REST refetch;
+- loading/empty/error states;
+- server validation mapping;
+- responsive baseline.
+
+### Acceptance criteria
+
+- Все обязательные Guest и Registered user flows работают в browser.
+- Основные operations выполняются без full reload.
+- UI не позволяет spoof registered author.
+- Preview близок к published rendering и безопасен.
+- Add/remove/replace attachments usable.
+- Edit/delete controls соответствуют backend policy flags.
+- Realtime create виден другому клиенту.
+- Mobile/deep-tree baseline usable.
+- Выполнен focused frontend verification critical flows.
+
+### Dependencies
+
+TASK-005–008.
 
 ---
 
-### [ ] TASK-042 — Finalize README and package justification
+## [ ] TASK-010 — Quality gate: OpenAPI, observability, security, tests, performance and CI
 
-**Цель:** провести финальный completeness/consistency audit README, который уже поддерживался инкрементально.
+**Legacy mapping:** old TASK-032–TASK-037.
 
-**Scope:** project overview, functionality, stack, requirements, local/Docker setup, env, migrations, tests, OpenAPI, auth/CAPTCHA, Queue/RabbitMQ, Redis/cache, Reverb, attachment behaviour/limits, significant packages + why package vs custom solution, production/cloud deployment, performance summary, scaling strategy, known limitations.
+### Goal
 
-**Acceptance:** новый reviewer может понять проект и развернуть его по README; команды актуальны; docs описывают реальное поведение, а не план.
+Превратить функционально готовое приложение в проверяемый Middle+ submission: contract, observability, regression coverage, security self-check и performance evidence.
 
-**Dependencies:** TASK-039, TASK-040, TASK-032, TASK-036.
+### Scope
+
+#### OpenAPI
+
+Довести Scramble-generated OpenAPI 3.1 до соответствия фактическому API:
+
+- comments;
+- auth;
+- profile;
+- attachments;
+- validation;
+- authorization;
+- error responses.
+
+#### Logging / security self-check
+
+Подтвердить application logging для:
+
+- uploads/image processing/media cleanup;
+- RabbitMQ jobs;
+- broadcasting;
+- mail;
+- CAPTCHA provider;
+- unexpected errors.
+
+Не логировать sensitive values.
+
+Провести self-check:
+
+- validation;
+- sorting whitelist / SQL injection resistance;
+- XSS/dangerous URLs;
+- authorization/ID tampering;
+- attachment validation;
+- preview behaviour.
+
+#### Automated tests
+
+Функциональные tasks уже должны иметь focused tests. Здесь:
+
+- заполнить missing critical coverage;
+- regression suite;
+- минимум один meaningful unit test;
+- integration tests для DB/Redis/RabbitMQ/media where appropriate;
+- убрать/заменить бессмысленные scaffold tests.
+
+#### Performance analysis
+
+Провести и задокументировать:
+
+- SQL query count;
+- N+1/eager loading;
+- tree loading;
+- mixed author sorting;
+- pagination;
+- media loading;
+- cache behaviour;
+- heavy responses/endpoints;
+- `EXPLAIN` ключевых queries;
+- обоснование, нужен ли дополнительный root visibility index.
+
+Не менять product model ради искусственного устранения допустимого filesort без evidence bottleneck.
+
+#### CI
+
+Добавить basic GitHub Actions pipeline:
+
+- Composer install;
+- npm ci/build;
+- Pint check;
+- PHPUnit;
+- OpenAPI generation/check;
+- required integration services.
+
+CI — SHOULD; если дедлайн требует trade-off, MUST quality/security/performance evidence имеет приоритет над polish CI.
+
+### Acceptance criteria
+
+- Full test suite green.
+- Pint green.
+- npm production build green.
+- OpenAPI соответствует runtime API.
+- Critical security self-check пройден и documented.
+- Performance report содержит измерения/EXPLAIN/findings/fixes/known limits.
+- Никаких подтверждённых N+1 в comments page.
+- CI работает либо, если сознательно не завершён из-за дедлайна, это явно отражено как remaining SHOULD, не скрывая факт.
+
+### Dependencies
+
+TASK-003–009.
 
 ---
 
-## Final verification and repository quality
+## [ ] TASK-011 — Production delivery, deployment, documentation and final acceptance
 
-### [ ] TASK-043 — Execute final SOW acceptance and self-check pass
+**Legacy mapping:** old TASK-038–TASK-044.
 
-**Цель:** доказать соответствие проекта MUST requirements и исходному заданию перед сдачей.
+### Goal
 
-**Scope:** системная проверка Guest/Account/Registered/tree/sorting/content/attachments/API/SPA/infrastructure/engineering; validation, preview, files, XSS, SQL-injection-safe sorting/queries, logging, rate limiting, realtime, Docker/deployment, tests, performance/scaling, README, OpenAPI, DB diagram.
+Подготовить реально сдаваемый проект: production build, тестируемое развертывание, обязательные deliverables и финальная проверка SOW/traceability.
 
-**Acceptance:** каждый MUST requirement имеет подтверждение test/manual verification либо явно отмеченную проблему; нет скрытых deviations; fresh clone поднимается по README.
+### Scope
 
-**Dependencies:** TASK-001–TASK-042.
+#### Production Docker / deployment
+
+- production-oriented multi-stage build;
+- отсутствие Vite dev server в production;
+- Nginx + TLS-ready topology;
+- Laravel/PHP-FPM;
+- static Vue build;
+- Reverb;
+- MySQL/Redis/RabbitMQ/worker;
+- persistent data/media;
+- external SMTP configuration;
+- provider-neutral core.
+
+Развернуть testable environment на доступном cloud/VDS/VM согласно SOW/Architecture и документировать URL/steps без secrets.
+
+#### Scaling documentation
+
+README/technical docs должны описывать evolution path приблизительно до:
+
+- 1,000,000 comments;
+- 100,000 users/day.
+
+Рассмотреть backend horizontal scaling, MySQL/indexes/pagination/trees, Redis, RabbitMQ, Reverb/WebSocket, file storage/CDN path.
+
+#### Database diagram
+
+Предоставить final DB diagram, соответствующую migrations и пригодную для MySQL Workbench workflow. Media relation показывать как logical polymorphic relation, а не выдуманный FK.
+
+#### Final README
+
+README должен быть актуальным относительно реального проекта и включать:
+
+- description/functionality;
+- stack;
+- local setup;
+- Docker;
+- env;
+- migrations;
+- tests;
+- API/OpenAPI;
+- auth/CAPTCHA;
+- RabbitMQ/Redis/Reverb;
+- attachments;
+- cache;
+- significant packages + rationale;
+- production/cloud deployment;
+- performance summary;
+- scaling;
+- known limitations.
+
+#### Final acceptance / repository audit
+
+Провести полную self-check по SOW Definition of Done:
+
+- Guest/Registered flows;
+- tree/sorting/pagination;
+- preview/formatting/security;
+- attachments;
+- API/SPA;
+- Redis/RabbitMQ/Queue/Events/WebSocket;
+- Docker/cloud;
+- tests/performance/scaling/README/diagram.
+
+Проверить:
+
+- clean/logical Git history;
+- TASK numbers in commits;
+- no secrets/generated junk;
+- completed task specs;
+- implementation log;
+- decisions log;
+- no undocumented deviation from SOW/Architecture/DB.
+
+### Acceptance criteria
+
+- Fresh clone можно поднять по README.
+- Local Docker environment воспроизводим.
+- Production/test environment доступен проверяющему.
+- DB diagram соответствует final migrations.
+- README соответствует реальным commands/features.
+- Scaling и performance evidence присутствуют.
+- Все MUST requirements либо подтверждены tests/manual evidence, либо явно отмечены как незакрытый blocker до сдачи; задача не принимается при скрытых MUST gaps.
+- Final repository clean и готов к передаче.
+
+### Dependencies
+
+TASK-010 и фактически завершённое приложение.
 
 ---
 
-### [ ] TASK-044 — Audit Git history, task traceability and project documentation
-
-**Цель:** финально проверить качество repository history и SDD traceability.
-
-**Scope:** logical Git history; каждый implementation commit содержит `TASK-XXX`; нет accidental giant/mixed commits без объяснения, secrets/generated garbage; `backlog.md` statuses согласованы с active/completed directories; implementation log содержит все завершённые задачи; decisions log используется только по назначению; README/OpenAPI/DB diagram соответствуют коду; отсутствуют undocumented deviations от SOW/Architecture/DB.
-
-**Acceptance:** по номеру задачи можно пройти цепочку `backlog → completed task spec → implementation log → Git commit → code/tests`; working tree чист перед сдачей или все оставшиеся изменения объяснены.
-
-**Dependencies:** TASK-043.
-
----
-
-# Рекомендуемая последовательность
+# Recommended execution order
 
 ```text
-TASK-000
-  ↓
-TASK-001 → TASK-002 → TASK-003 → TASK-004
-  ↓
-TASK-005 → TASK-006 → TASK-007/008
-  ↓
-TASK-009/010/011
-  ↓
-TASK-012 → TASK-013 → TASK-014/015/016 → TASK-017/018/019 → TASK-020
-  ↓
-TASK-021 → TASK-022
-  ↓
-TASK-023 → TASK-024/025 → TASK-026/027/028/029/030 → TASK-031
-  ↓
-TASK-032/033/034/035
-  ↓
-TASK-036 → TASK-037/040
-  ↓
-TASK-038 → TASK-039
-  ↓
-TASK-041/042
-  ↓
-TASK-043
-  ↓
-TASK-044
+TASK-003  Backend foundation
+   ↓
+TASK-004  Accounts/profile/security entry
+   ↓
+TASK-005  Comment read domain
+   ↓
+TASK-006  Comment publication lifecycle
+   ↓
+TASK-007  Cache/queue/realtime
+
+TASK-004 ───────────────→ TASK-008  SPA accounts/profile
+TASK-005/006/007/008 ──→ TASK-009  Comments SPA
+
+TASK-003–009 ──────────→ TASK-010  Quality/performance/CI
+TASK-010 ──────────────→ TASK-011  Production/delivery/final acceptance
 ```
 
-Это dependency guidance, а не разрешение игнорировать реальное состояние repository. Перед активацией каждой задачи агент обязан исследовать существующую реализацию и проверить, действительно ли её dependencies уже выполнены.
+# Deadline-mode guidance
+
+При жёстком дедлайне нельзя пропускать MUST requirements, но внутри macro-task агент должен сначала реализовывать critical path, затем SHOULD/polish.
+
+Приоритет реализации:
+
+1. working backend contract;
+2. working end-to-end SPA flows;
+3. mandatory infrastructure integrations;
+4. mandatory tests/security/performance evidence;
+5. production deployment + mandatory delivery artifacts;
+6. SHOULD polish/CI improvements, если остаётся время.
+
+Если macro-task становится слишком большой для одного review cycle, её можно разбить только внутри `docs/tasks/active/TASK-XXX-*.md` на implementation phases/subtasks, не создавая новые top-level task numbers без явного решения владельца проекта.
