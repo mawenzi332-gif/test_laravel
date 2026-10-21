@@ -2,6 +2,66 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-003 — Backend foundation: database, domain models and API conventions
+
+**Статус:** принято
+**Дата:** 2026-10-21
+
+### Что реализовано
+
+- Созданы миграции для `users`, `comments`, `media`, `password_reset_tokens`, `failed_jobs`; служебная `migrations` создаётся Laravel. Запрещённые framework/product tables не добавлены.
+- Добавлены MySQL CHECK constraints для Guest/Registered author, парности `parent_id`/`root_id` и deletion state/type; foreign keys и утверждённые indexes сохранены.
+- Добавлены `Comment` и обновлён `User`: отношения, casts, SoftDeletes, Spatie Media Library integration и стабильные morph aliases. Registered author snapshots отсутствуют.
+- Настроен `/api/v1` route loading и единый JSON error envelope для validation, authentication, forbidden, not found, rate limit и internal errors.
+- README описывает миграции и команды fresh/rollback.
+
+### Как это реализовано
+
+`Comment` хранит либо `user_id`, либо Guest author fields; MySQL CHECK не допускает гибридного автора. Self-referencing `parent_id`/`root_id` foreign keys сохраняют `RESTRICT`. Два CHECK сравнения с AUTO_INCREMENT `id` исключены по явному решению пользователя после ошибки MySQL 8.4; self-parent/self-root валидируются на Eloquent `saving` boundary. `SoftDeletes` обновляет `deleted_at` вместе с `deletion_type` в одном statement, а restore очищает обе колонки совместно, чтобы сохранять DB invariant.
+
+API exception renderer применяется только к `/api/v1`; внутренние exception messages/details не возвращаются клиенту.
+
+### Основные изменённые области
+
+- `database/migrations/`
+- `app/Models/Comment.php`, `app/Models/User.php`, `app/Providers/AppServiceProvider.php`
+- `bootstrap/app.php`, `routes/api.php`
+- `tests/Feature/BackendFoundationTest.php`, `tests/Feature/MySqlCommentConstraintTest.php`
+- `database/factories/UserFactory.php`, `README.md`
+- `docs/tasks/backlog.md`, `docs/tasks/active/TASK-003-backend-foundation.md`
+
+### Проверки
+
+- `docker compose exec -T -e DB_CONNECTION=mysql -e DB_DATABASE=comments_task003_test -e DB_USERNAME=comments -e DB_PASSWORD=comments app php artisan migrate:fresh --force` — passed.
+- `docker compose exec -T -e DB_CONNECTION=mysql -e DB_DATABASE=comments_task003_test -e DB_USERNAME=comments -e DB_PASSWORD=comments app php artisan test --compact` — passed: 14 tests, 66 assertions; включая CHECK/FK metadata, invalid writes и atomic soft delete/restore.
+- `docker compose exec -T -e DB_CONNECTION=sqlite -e DB_DATABASE=:memory: app php artisan test --compact` — passed: 10 tests, 55 assertions; 4 MySQL-only tests skipped.
+- На изолированной MySQL базе выполнены `php artisan migrate:rollback --force`, `php artisan migrate --force` и повторный `php artisan migrate:fresh --force` — passed.
+- `docker compose exec -T app vendor/bin/pint --test` — passed: 31 files.
+- `git diff --check` — passed.
+
+### Документация
+
+- README: добавлены database migration, fresh и rollback команды; перечислены утверждённые таблицы и drivers.
+- OpenAPI: без изменений; product endpoints не добавлялись.
+- Другое: добавлены task-spec и эта запись implementation log.
+
+### Отклонения от SOW / Architecture / DB
+
+- По явному решению пользователя удалены только `comments_not_own_parent_chk` и `comments_not_own_root_chk`: MySQL 8.4 не разрешает CHECK constraints, ссылающиеся на AUTO_INCREMENT column. Соответствующие self-reference инварианты проверяются на Eloquent persistence boundary; self-referencing FKs сохранены. Triggers не используются.
+
+### Финализация после approval
+
+- Пользователь одобрил TASK-003; task-spec перемещена в `docs/tasks/completed/`, backlog marker установлен в `[x]`, статус записи — `принято`.
+- Commit не создавался; изменения готовы к пользовательскому commit.
+
+### Известные ограничения / нерешённые вопросы
+
+- Raw SQL writes обходят Eloquent self-reference validation; application writes через `Comment` model её выполняют.
+
+### Предлагаемый commit
+
+`feat(TASK-003): establish database and API foundations`
+
 ## TASK-002 — Build reproducible Docker development environment
 
 **Статус:** принято

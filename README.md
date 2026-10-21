@@ -43,6 +43,29 @@ curl --fail http://localhost:8080/up
 docker compose exec app php artisan tinker --execute='DB::connection()->getPdo(); app("redis")->connection()->ping(); app("queue")->connection("rabbitmq")->size();'
 ```
 
+## Database migrations
+
+После запуска MySQL-сервиса примените схему Laravel:
+
+```bash
+docker compose exec app php artisan migrate
+```
+
+Для локальной разработки можно пересоздать схему с нуля (`migrate:fresh` удаляет таблицы текущей базы):
+
+```bash
+docker compose exec app php artisan migrate:fresh
+```
+
+Откатите последнюю migration batch и примените migrations повторно:
+
+```bash
+docker compose exec app php artisan migrate:rollback
+docker compose exec app php artisan migrate
+```
+
+Текущая схема включает `users`, `comments`, Spatie `media`, `password_reset_tokens`, Laravel `failed_jobs` и служебную `migrations`. Таблицы sessions/cache/queue и личных API tokens не создаются: соответствующие drivers используют Redis или RabbitMQ согласно конфигурации.
+
 Письма локальной разработки отправляются в Mailpit; они видны в его UI. Чтобы остановить окружение, сохранив данные сервисов, используйте `docker compose down`. Команда `docker compose down -v` удаляет named volumes вместе с данными MySQL, Redis, RabbitMQ и Mailpit.
 
 Production assets собираются в Vite container. PHP tests и Pint можно запустить в общем PHP container:

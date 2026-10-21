@@ -39,7 +39,7 @@
 
 # Remaining implementation backlog
 
-## [ ] TASK-003 — Backend foundation: database, domain models and API conventions
+## [x] TASK-003 — Backend foundation: database, domain models and API conventions
 
 **Legacy mapping:** old TASK-003–TASK-005.
 
