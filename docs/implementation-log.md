@@ -2,6 +2,73 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-002 — Build reproducible Docker development environment
+
+**Статус:** принято
+**Дата:** 2026-10-20
+
+### Что реализовано
+
+- Добавлен общий PHP 8.4 development image с Composer и extensions `bcmath`, `exif`, `fileinfo`, `imagick`, `mbstring`, `pcntl`, `pdo_mysql`, `redis`, `sockets`, `zip`.
+- Добавлены Compose services Nginx, Laravel/PHP-FPM, Vite, MySQL, Redis, RabbitMQ, queue worker, Reverb и Mailpit.
+- Настроены health checks для MySQL, Redis, RabbitMQ, app, Nginx и Mailpit; persistent named volumes для БД/брокера/кеша и runtime-зависимостей.
+- Зарегистрирован Laravel RabbitMQ queue connection без реализации business job flows.
+- README описывает Docker workflow, endpoints сервисов, проверку подключений и команды остановки.
+
+### Как это реализовано
+
+`app`, `queue-worker` и `reverb` используют один image `comments-app:local` с разными commands. Nginx направляет Laravel requests в PHP-FPM и имеет read-only mount только на `public/`. Vite запускает HMR на host port 5173. Compose передаёт Laravel адреса MySQL/Redis/RabbitMQ/Mailpit и ждёт health checks основных зависимостей. Reverb публикуется отдельным host port, не совпадающим с его внутренним port.
+
+### Основные изменённые области
+
+- `Dockerfile`, `.dockerignore`, `compose.yaml`, `docker/nginx/default.conf`
+- `config/queue.php`, `README.md`
+- `docs/tasks/backlog.md`, `docs/tasks/completed/TASK-002-docker-development-environment.md`
+
+### Проверки
+
+- `docker compose --env-file .env.example config --quiet` — passed.
+- `docker compose build` — passed.
+- `docker compose ps` — все девять services запущены; app, Nginx, MySQL, Redis, RabbitMQ и Mailpit healthy.
+- `docker compose exec -T app php -m` и `extension_loaded('mbstring')` — passed; native `mbstring` загружен вместе с остальными требуемыми extensions.
+- `docker compose exec -T app composer check-platform-reqs` — passed; Composer также распознаёт Symfony polyfill для `mbstring`.
+- `docker compose exec -T vite npm run build` — passed.
+- Laravel Tinker PDO/Redis/RabbitMQ smoke check — passed.
+- Laravel `Mail::raw(...)` test message — принят; получатель и subject подтверждены через Mailpit API.
+- `Mailpit SMTP` socket check — passed.
+- HTTP `GET /`, `/up` на `127.0.0.1:8080`, Vite `/@vite/client` на `127.0.0.1:5173`, Mailpit UI и RabbitMQ management — HTTP 200.
+- `docker compose exec -T app vendor/bin/pint --test config/queue.php` — passed, 1 file.
+- `git diff --check` — passed.
+
+### Review iteration 1 (2026-10-21)
+
+- Исправлен host Vite: `public/hot`, HTML assets и HMR используют `localhost`, а Vite продолжает слушать интерфейс контейнера. Настроен порт из `.env` и добавлены все Compose host ports в `.env.example`.
+- App health check теперь проверяет TCP listener PHP-FPM; Nginx запускается после статуса `app: healthy`, а health check получает 30 секунд start period.
+- README Redis smoke command переключена на Laravel Redis manager (`app("redis")`).
+- Для Reverb настроены development-only app credentials и browser host/port; Echo и broadcast event flows явно оставлены будущим realtime задачам.
+- Повторные проверки: Vite JS/CSS вернули HTTP 200, HMR WebSocket подключился, Reverb вернул `pusher:connection_established`, Nginx и app стали healthy.
+- Повторная диагностика в headless Chromium выявила CORS mismatch: браузерная страница с origin `localhost:8080` не могла импортировать Vite modules, для которых Vite разрешал origin `localhost:5173`. Vite CORS allowlist теперь разрешает host app origins. Повторный запуск Chromium отрисовал Vue карточку «Приложение готово к настройке» без console, page или network errors.
+- После проверки пользователем работа приложения подтверждена; TASK-002 одобрена и финализирована.
+
+### Документация
+
+- README: добавлен воспроизводимый Docker setup, service addresses, connectivity checks, перезапуск при изменениях dependencies и shutdown workflow.
+- OpenAPI: без изменений.
+- Другое: созданы task-spec и Compose/Nginx/Dockerfile конфигурации.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет.
+
+### Известные ограничения / нерешённые вопросы
+
+- DB migrations намеренно не создавались; они входят в TASK-003.
+- Queue worker запускается и подключён к RabbitMQ, но business workflows реализуются в TASK-021.
+
+### Предлагаемый commit
+
+`chore(TASK-002): build reproducible Docker development environment`
+
 ## TASK-001 — Bootstrap Laravel and Vue application stack
 
 **Статус:** принято

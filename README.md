@@ -1,39 +1,57 @@
 # Comments SPA
 
-Веб-приложение древовидных комментариев: Laravel 12 REST backend и Vue 3 SPA. Для локальной разработки требуются PHP 8.4 с расширениями `bcmath`, `exif`, `sockets` и `zip`, Composer 2, Node.js 22 и npm. Запускаемые приложения также используют MySQL и Redis; адреса сервисов и остальные настройки задаются в `.env`.
+Веб-приложение древовидных комментариев: Laravel 12 REST backend и Vue 3 SPA. Для локальной разработки нужен Docker Engine с Docker Compose v2.
 
 ## Локальная разработка
 
-Для чистого checkout установите PHP и Node зависимости и настройте `.env`:
+Для чистого checkout создайте локальный `.env`, соберите PHP image и поднимите окружение:
 
 ```bash
-composer install
 cp .env.example .env
-php artisan key:generate
-npm ci
+docker compose up --build -d
+docker compose exec app php artisan key:generate
 ```
 
-Для локальной разработки запустите backend и Vite в отдельных терминалах:
+При старте app container синхронизирует Composer dependencies по lockfile; Vite container устанавливает npm dependencies по lockfile. Laravel доступен через Nginx; Vite обслуживает HMR. После изменения Composer dependencies выполните `docker compose exec app composer install --no-interaction --prefer-dist`, затем перезапустите `queue-worker` и `reverb` через `docker compose restart queue-worker reverb`. После изменения npm dependencies перезапустите `vite` командой `docker compose restart vite`. Изменения PHP extensions или Dockerfile требуют пересборки image через `docker compose up --build -d`.
+
+| Сервис | Адрес с host |
+|---|---|
+| Laravel через Nginx | <http://localhost:8080> |
+| Vite HMR | <http://localhost:5173> |
+| Mailpit UI | <http://localhost:8025> |
+| RabbitMQ management | <http://localhost:15672> |
+| MySQL | `localhost:3306` |
+| Redis | `localhost:6379` |
+| RabbitMQ AMQP | `localhost:5672` |
+| Reverb WebSocket | `localhost:8081` |
+
+Порты можно переопределить в `.env` (`APP_HTTP_PORT`, `VITE_PORT`, `MYSQL_PORT`, `REDIS_PORT`, `RABBITMQ_PORT`, `RABBITMQ_MANAGEMENT_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT`, `REVERB_HOST_PORT`); все переменные с портами уже перечислены в `.env.example`. `REVERB_PORT` остаётся внутренним портом контейнера. Development credentials из `.env.example` предназначены только для локальной разработки. Compose передаёт параметры подключения сервисам через environment.
+
+Laravel использует `REVERB_HOST=reverb` и внутренний порт 8080 для соединений между контейнерами. Vite получает отдельный browser адрес `localhost` и опубликованный `REVERB_HOST_PORT`. Laravel Echo и broadcast event flows подключаются в последующих задачах; текущая задача подготавливает доступный Reverb endpoint.
+
+Проверить состояние контейнеров и логи:
 
 ```bash
-php artisan serve
-npm run dev
+docker compose ps
+docker compose logs -f app nginx vite queue-worker reverb
 ```
 
-Production assets собираются командой:
+Проверить HTTP endpoint и подключения приложения к MySQL, Redis и RabbitMQ:
 
 ```bash
-npm run build
+curl --fail http://localhost:8080/up
+docker compose exec app php artisan tinker --execute='DB::connection()->getPdo(); app("redis")->connection()->ping(); app("queue")->connection("rabbitmq")->size();'
 ```
 
-Автоматические backend tests запускаются через PHPUnit, стиль PHP проверяется Laravel Pint:
+Письма локальной разработки отправляются в Mailpit; они видны в его UI. Чтобы остановить окружение, сохранив данные сервисов, используйте `docker compose down`. Команда `docker compose down -v` удаляет named volumes вместе с данными MySQL, Redis, RabbitMQ и Mailpit.
+
+Production assets собираются в Vite container. PHP tests и Pint можно запустить в общем PHP container:
 
 ```bash
-php artisan test
-vendor/bin/pint --test
+docker compose exec vite npm run build
+docker compose exec app php artisan test
+docker compose exec app vendor/bin/pint --test
 ```
-
-Для запуска backend должны быть доступны настроенные в `.env` MySQL и Redis. Docker Compose окружение и полная настройка development services добавляются в TASK-002.
 
 ## Технологии и зависимости
 

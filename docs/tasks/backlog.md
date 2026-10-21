@@ -46,7 +46,7 @@
 
 ---
 
-### [ ] TASK-002 — Build reproducible Docker development environment
+### [x] TASK-002 — Build reproducible Docker development environment
 
 **Цель:** воспроизводимое локальное окружение для разработки и проверки.
 
