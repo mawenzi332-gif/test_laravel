@@ -2,6 +2,67 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-004 — Accounts, profile and publication abuse protection
+
+**Статус:** принято
+**Дата:** 2026-10-21
+
+### Что реализовано
+
+- Подключены Fortify и Sanctum для first-party SPA sessions: registration, login, logout, forgot/reset password, `/sanctum/csrf-cookie` и `/api/v1/me`.
+- У Fortify включены только registration и password reset; лишние endpoints не регистрируются. Login и reset requests используют явные validation rules, API login errors получают нормализованный `AUTHENTICATION_FAILED`.
+- Password reset notification формирует SPA URL `/reset-password/{token}?email=...`; соответствующая ссылка проверена в feature test.
+- Добавлены profile read/update для name, email и optional home page. При изменении профиля повышается `comments:list:version`.
+- Добавлены configurable Redis rate limiters для registration, login, password recovery и будущей публикации comments.
+- Подключены credentials Google reCAPTCHA v2 через `anhskohbo/no-captcha` и стандартное Laravel rule `captcha` для последующих publication requests.
+- README дополнен API contract, CSRF cookie flow, Redis и local Mailpit/reset settings.
+
+### Как это реализовано
+
+Fortify остаётся headless backend: пять разрешённых auth routes направлены на его контроллеры и проходят через web session middleware. Login/reset обёрнуты небольшими request/controller adapters для валидации разрешённых полей и корректной OpenAPI schema. Sanctum обрабатывает stateful API middleware для `/me`; cookies/CSRF используют Laravel web session. Rate limiters Laravel используют default cache store (Redis в runtime) и отдельные keys: IP для регистрации/comment publication, email+IP для login/password recovery. CAPTCHA проверяется штатным package validator без endpoint или persistent CAPTCHA model.
+
+Схема `users` по DB.md не включает `remember_token`, а remember-me вне scope. Модель отключает remember token field, чтобы Fortify `CompletePasswordReset` сохранял пароль без попытки записать отсутствующую колонку.
+
+### Основные изменённые области
+
+- `app/Auth/`, `app/Http/Controllers/Api/V1/`, `app/Http/Requests/`, `app/Http/Resources/`
+- `app/Models/User.php`, `app/Providers/FortifyServiceProvider.php`
+- `bootstrap/app.php`, `bootstrap/providers.php`, `config/`, `routes/`
+- `tests/Feature/AccountAuthTest.php`, `tests/Feature/ProfileAndAbuseProtectionTest.php`
+- `README.md`, `docs/tasks/backlog.md`, `docs/tasks/active/TASK-004-accounts-profile-abuse-protection.md`
+
+### Проверки
+
+- `docker compose exec -T app php artisan test --compact` — passed: 28 tests, 129 assertions.
+- `docker compose exec -T app vendor/bin/pint --test` — passed (46 files).
+- `docker compose exec -T app php artisan scramble:export --fail-on-unknown --path=/tmp/task004-openapi.json` — passed; проверены все 5 auth и `/v1/me` paths.
+- Laravel session handler smoke check на Redis — `Illuminate\Session\CacheBasedSessionHandler`, write/read passed; runtime `session.driver` и `cache.default` равны `redis`.
+- `git diff --check` — passed.
+
+### Документация
+
+- README: добавлен раздел SPA authentication/profile, endpoint map, CSRF/Sanctum, rate-limit/CAPTCHA env vars и Mailpit.
+- OpenAPI: Scramble экспортирует auth/profile routes без unknown schemas; generated JSON остаётся runtime artifact в `/tmp`.
+- Другое: backlog TASK-004 переведён в REVIEW, создан active task-spec.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет.
+
+### Известные ограничения / нерешённые вопросы
+
+- Browser UI для account/profile входит в TASK-008.
+- Publication routes ещё не созданы; для них подготовлены именованный limiter и CAPTCHA validator в рамках текущего scope.
+
+### Предлагаемый commit
+
+`feat(TASK-004): implement account and abuse protection flows`
+
+### Финализация после approval
+
+- Пользователь одобрил TASK-004; task-spec перемещена в `docs/tasks/completed/`, backlog marker установлен в `[x]`, статус записи — `принято`.
+- Commit не создавался; изменения готовы к пользовательскому commit.
+
 ## TASK-003 — Backend foundation: database, domain models and API conventions
 
 **Статус:** принято

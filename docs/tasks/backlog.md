@@ -109,7 +109,7 @@ TASK-000–002 completed.
 
 ---
 
-## [ ] TASK-004 — Accounts, profile and publication abuse protection
+## [x] TASK-004 — Accounts, profile and publication abuse protection
 
 **Legacy mapping:** old TASK-006–TASK-009.
 

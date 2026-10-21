@@ -47,6 +47,14 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Remember-me sessions are outside the product scope and users has no token column.
+     */
+    public function getRememberTokenName(): string
+    {
+        return '';
+    }
+
     public function comments(): HasMany
     {
         return $this->hasMany(Comment::class);

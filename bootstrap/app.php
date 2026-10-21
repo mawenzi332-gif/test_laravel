@@ -20,7 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->statefulApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (Throwable $exception, Request $request) {
@@ -38,7 +38,16 @@ return Application::configure(basePath: dirname(__DIR__))
                 default => 500,
             };
 
+            $validationErrors = $exception instanceof ValidationException ? $exception->errors() : [];
+            $failedLogin = $request->routeIs('login.store')
+                && ($validationErrors['email'][0] ?? null) === trans('auth.failed');
+
             [$code, $message, $details] = match (true) {
+                $failedLogin => [
+                    'AUTHENTICATION_FAILED',
+                    'The provided credentials are incorrect.',
+                    (object) [],
+                ],
                 $exception instanceof ValidationException => [
                     'VALIDATION_ERROR',
                     'The submitted data is invalid.',

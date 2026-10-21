@@ -66,6 +66,26 @@ docker compose exec app php artisan migrate
 
 Текущая схема включает `users`, `comments`, Spatie `media`, `password_reset_tokens`, Laravel `failed_jobs` и служебную `migrations`. Таблицы sessions/cache/queue и личных API tokens не создаются: соответствующие drivers используют Redis или RabbitMQ согласно конфигурации.
 
+## SPA authentication и профиль
+
+Fortify предоставляет session-based endpoints:
+
+| Метод | Endpoint | Назначение |
+|---|---|---|
+| `POST` | `/api/v1/auth/register` | регистрация и вход созданного пользователя |
+| `POST` | `/api/v1/auth/login` | вход по email/password |
+| `POST` | `/api/v1/auth/logout` | завершение сессии |
+| `POST` | `/api/v1/auth/forgot-password` | отправка ссылки для сброса пароля |
+| `POST` | `/api/v1/auth/reset-password` | установка нового пароля по token |
+| `GET` | `/api/v1/me` | чтение текущего пользователя |
+| `PATCH` | `/api/v1/me` | обновление name, email и optional home page |
+
+Перед account-запросами SPA получает CSRF cookie через `GET /sanctum/csrf-cookie`, затем отправляет cookies и заголовок `X-XSRF-TOKEN`. Stateful domains задаются через `SANCTUM_STATEFUL_DOMAINS`; сессии и limiter/cache state хранятся в Redis (`SESSION_DRIVER=redis`, `CACHE_STORE=redis`). Пароль требует не менее 10 символов, букв и цифр. Email уникален; проверка email, 2FA и прочие account-функции вне текущего scope отключены.
+
+Локальное письмо password reset доступно в Mailpit UI по адресу <http://localhost:8025>; ссылка открывает SPA путь `/reset-password/{token}` и передаёт email query parameter. Настройки лимитов можно изменить в `.env`: `REGISTRATION_RATE_LIMIT[_DECAY]`, `LOGIN_RATE_LIMIT[_DECAY]`, `PASSWORD_RECOVERY_RATE_LIMIT[_DECAY]` и `COMMENT_RATE_LIMIT[_DECAY]`. reCAPTCHA v2 credentials задаются через `NOCAPTCHA_SITEKEY` и `NOCAPTCHA_SECRET`; валидационное правило `captcha` предназначено для будущих comment publication endpoints, оно не включено в account формы.
+
+API описание обновляется Scramble и доступно по адресу <http://localhost:8080/docs/api>.
+
 Письма локальной разработки отправляются в Mailpit; они видны в его UI. Чтобы остановить окружение, сохранив данные сервисов, используйте `docker compose down`. Команда `docker compose down -v` удаляет named volumes вместе с данными MySQL, Redis, RabbitMQ и Mailpit.
 
 Production assets собираются в Vite container. PHP tests и Pint можно запустить в общем PHP container:
