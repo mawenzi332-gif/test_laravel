@@ -2,6 +2,8 @@
 
 namespace App\Comments;
 
+use App\Events\CommentCreated;
+use App\Jobs\BroadcastCommentCreated;
 use App\Models\Comment;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -12,7 +14,10 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class CommentService
 {
-    public function __construct(private readonly CommentSanitizer $sanitizer) {}
+    public function __construct(
+        private readonly CommentSanitizer $sanitizer,
+        private readonly CommentListCache $commentCache,
+    ) {}
 
     /** @param array<string, mixed> $data */
     public function create(array $data, ?User $user): Comment
@@ -45,6 +50,10 @@ class CommentService
             $this->cleanupCreatedMedia($createdMedia);
             throw $exception;
         }
+
+        $this->commentCache->invalidate();
+        CommentCreated::dispatchFor($comment);
+        BroadcastCommentCreated::dispatch((int) $comment->getKey(), (int) ($comment->root_id ?? $comment->getKey()));
 
         return $comment->load(['user', 'media']);
     }
@@ -108,6 +117,8 @@ class CommentService
             throw $exception;
         }
 
+        $this->commentCache->invalidate();
+
         return $comment->refresh()->load(['user', 'media']);
     }
 
@@ -127,6 +138,8 @@ class CommentService
 
             throw $exception;
         }
+
+        $this->commentCache->invalidate();
     }
 
     /** @param array<int, UploadedFile> $files */

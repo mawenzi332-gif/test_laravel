@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Comment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -145,6 +146,7 @@ class CommentReadApiTest extends TestCase
 
         DB::enableQueryLog();
         DB::flushQueryLog();
+        Cache::flush();
         $this->getJson('/api/v1/comments')->assertOk();
         $smallCount = count(DB::getQueryLog());
         DB::flushQueryLog();
@@ -155,6 +157,7 @@ class CommentReadApiTest extends TestCase
         }
 
         DB::flushQueryLog();
+        Cache::flush();
         $this->getJson('/api/v1/comments')->assertOk();
         $largeCount = count(DB::getQueryLog());
 

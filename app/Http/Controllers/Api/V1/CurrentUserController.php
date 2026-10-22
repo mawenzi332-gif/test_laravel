@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Comments\CommentListCache;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 
 class CurrentUserController extends Controller
@@ -16,7 +16,7 @@ class CurrentUserController extends Controller
         return new UserResource($request->user());
     }
 
-    public function update(Request $request): UserResource
+    public function update(Request $request, CommentListCache $commentCache): UserResource
     {
         /** @var User $user */
         $user = $request->user();
@@ -29,7 +29,7 @@ class CurrentUserController extends Controller
 
         if ($validated !== []) {
             $user->fill($validated)->save();
-            Cache::increment('comments:list:version');
+            $commentCache->invalidate();
         }
 
         return new UserResource($user->refresh());

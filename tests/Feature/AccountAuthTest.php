@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Auth\QueuedResetPasswordNotification;
 use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -72,9 +72,9 @@ class AccountAuthTest extends TestCase
 
         $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email])
             ->assertOk();
-        Notification::assertSentTo($user, ResetPassword::class);
+        Notification::assertSentTo($user, QueuedResetPasswordNotification::class);
 
-        $resetNotification = Notification::sent($user, ResetPassword::class)->first();
+        $resetNotification = Notification::sent($user, QueuedResetPasswordNotification::class)->first();
         $this->assertStringContainsString('/reset-password/'.$resetNotification->token, $resetNotification->toMail($user)->actionUrl);
 
         $token = Password::createToken($user);

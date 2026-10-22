@@ -49,6 +49,8 @@ services:
       MAIL_HOST: mailpit
       MAIL_PORT: 1025
       QUEUE_CONNECTION: rabbitmq
+      BROADCAST_CONNECTION: reverb
+      CACHE_STORE: redis
     depends_on:
       mysql:
         condition: service_healthy
@@ -134,7 +136,7 @@ services:
   queue-worker:
     image: comments-app:local
     working_dir: /var/www/html
-    command: ["php", "artisan", "queue:work", "rabbitmq", "--sleep=1", "--tries=3"]
+    command: ["php", "artisan", "queue:work", "rabbitmq", "--queue=broadcasts,mail", "--sleep=1", "--tries=3", "--backoff=10"]
     volumes:
       - .:/var/www/html
       - app_vendor:/var/www/html/vendor
@@ -162,9 +164,13 @@ services:
       MAIL_HOST: mailpit
       MAIL_PORT: 1025
       QUEUE_CONNECTION: rabbitmq
+      BROADCAST_CONNECTION: reverb
+      CACHE_STORE: redis
     depends_on:
       app:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
   reverb:
     image: comments-app:local
@@ -199,6 +205,8 @@ services:
       MAIL_HOST: mailpit
       MAIL_PORT: 1025
       QUEUE_CONNECTION: rabbitmq
+      BROADCAST_CONNECTION: reverb
+      CACHE_STORE: redis
     depends_on:
       app:
         condition: service_healthy

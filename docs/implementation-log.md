@@ -2,9 +2,69 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-007 — Redis cache, RabbitMQ queues and realtime comments
+
+**Статус:** принято
+**Дата:** 2026-10-22
+
+### Что реализовано
+
+- Добавлено Redis-кэширование public comment pages/trees с generation key, sort/direction/page keys и настраиваемым TTL.
+- Инвалидация generation вызывается после create/update/delete, включая изменение вложений, и после сохранения профиля. `can_edit`/`can_delete` вычисляются ресурсом для текущего запроса и не сохраняются в общем кеше.
+- Создан `CommentCreated` application event и queued `BroadcastCommentCreated` job для RabbitMQ queue `broadcasts`; payload содержит только comment/root IDs.
+- Password reset notification теперь ставится в RabbitMQ queue `mail`; broadcast имеет 3 попытки с backoff 10/30/60 секунд, mail — 5 попыток с backoff 10/30/60/120 секунд.
+- Настроены Reverb broadcasting, Echo listener с 250 ms debounce и REST refetch текущей страницы. Compose worker слушает только `broadcasts,mail` и ждёт готовности app и старта Mailpit.
+- Обновлён README; PHPUnit test environment изолирован от runtime Docker cache/queue/database values.
+
+### Как это реализовано
+
+`CommentRepository` оборачивает public paginator/tree в `CommentListCache`. Перед чтением формируется ключ `comments:v{version}:{sort}:{direction}:page:{page}`; cache miss выполняет существующий bounded tree query. Version увеличивается централизованным `CommentListCache::invalidate()`, а при истечении TTL самого page key stale данные также автоматически отбрасываются по TTL.
+
+После сохранения comment сервис инвалидирует cache и отправляет `CommentCreated`, затем ставит `BroadcastCommentCreated` в RabbitMQ. Job отправляет минимальное событие в публичный Reverb channel `comments`; браузер debounce-ит частые события и запрашивает список через REST вместо ручной вставки в дерево. Password reset использует queued notification с собственными tries/backoff и queue `mail`.
+
+### Основные изменённые области
+
+- `app/Comments/CommentListCache.php`, `CommentRepository.php`, `CommentService.php`
+- `app/Events/CommentCreated.php`, `app/Jobs/BroadcastCommentCreated.php`, `app/Auth/QueuedResetPasswordNotification.php`, `app/Models/User.php`
+- `config/comment-cache.php`, `config/broadcasting.php`, `config/queue.php`, `bootstrap/app.php`, `routes/channels.php`, `compose.yaml`, `.env.example`
+- `resources/js/views/HomeView.vue`, `tests/Feature/CommentInfrastructureTest.php`, затронутые test fixtures/config
+- `README.md`, `docs/tasks/backlog.md`, `docs/tasks/completed/TASK-007-redis-queues-realtime.md`
+
+### Проверки
+
+- `docker compose exec -T app php artisan test` — passed: 56 tests / 332 assertions.
+- `docker compose exec -T app vendor/bin/pint --test` — passed: 75 files.
+- `npm run build -- --outDir /tmp/comments-task007-build` — passed; host build output был направлен в `/tmp`, потому что очистка существующих `public/build` файлов завершалась с EACCES.
+- `docker compose config --quiet` — passed.
+- RabbitMQ/Reverb/Mailpit smoke: broadcast job обработан worker; WebSocket клиент получил `comment.created`, REST refetch вернул HTTP 200; reset notification обработана и Mailpit получил письма; `php artisan queue:failed` не нашёл jobs.
+- `git diff --check` — выполнен перед передачей в REVIEW.
+
+### Документация
+
+- README: описаны Redis generation cache, TTL, очереди `broadcasts`/`mail`, worker диагностика, retries и realtime REST reconciliation.
+- OpenAPI: без изменений — API contract не менялся.
+- Другое: TASK-007 одобрена; task file перенесён в `completed/`, backlog отмечен `[x]`; основные approved specifications не менялись.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет.
+
+### Известные ограничения / нерешённые вопросы
+
+- В проекте пока нет browser automation/test runner; live smoke проверил WebSocket event delivery и REST refetch, а frontend production build проверил сборку Echo-интеграции. Поведение Vue view можно дополнительно проверить в браузере при ревью.
+- Build в стандартную `public/build` папку на host блокируется правами существующих файлов; build output в `/tmp` проходит.
+
+### Предлагаемый commit
+
+`feat(TASK-007): add Redis caching and RabbitMQ realtime comments`
+
+### Финализация
+
+Пользователь одобрил TASK-007. Task file перемещён из `active/` в `completed/`, статус установлен в `COMPLETED`, backlog и журнал обновлены. Коммит не создавался; изменения готовы к пользовательскому коммиту.
+
 ## TASK-006 — Comment publication lifecycle
 
-**Статус:** готово к ревью
+**Статус:** принято
 **Дата:** 2026-10-22
 
 ### Что реализовано
@@ -55,6 +115,11 @@
 ### Предлагаемый commit
 
 `feat(TASK-006): implement comment publication lifecycle`
+
+### Финализация после approval
+
+- Пользователь одобрил TASK-006; task-spec перенесена в `docs/tasks/completed/`, backlog marker установлен в `[x]`, статус записи изменён на `принято`.
+- Commit не создавался; изменения готовы к пользовательскому commit.
 
 ## TASK-005 — Comment read domain: sanitizer, media foundation, tree, sorting and list API
 

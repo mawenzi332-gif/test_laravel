@@ -267,7 +267,7 @@ TASK-003. TASK-004 нужен для полноценного Registered author 
 
 ---
 
-## [?] TASK-006 — Comment publication lifecycle: create, preview, ownership, edit, delete and attachment reads
+## [x] TASK-006 — Comment publication lifecycle: create, preview, ownership, edit, delete and attachment reads
 
 **Legacy mapping:** old TASK-014–TASK-019.
 
@@ -368,7 +368,7 @@ TASK-004, TASK-005.
 
 ---
 
-## [ ] TASK-007 — Redis cache, RabbitMQ queues and realtime comments
+## [x] TASK-007 — Redis cache, RabbitMQ queues and realtime comments
 
 **Legacy mapping:** old TASK-020–TASK-022.
 

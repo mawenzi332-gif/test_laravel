@@ -44,7 +44,7 @@ class ProfileAndAbuseProtectionTest extends TestCase
             ->assertJsonPath('data.email', 'ada@example.test')
             ->assertJsonPath('data.home_page', 'https://ada.example.test');
 
-        $this->assertSame(1, cache('comments:list:version'));
+        $this->assertSame(1, (int) cache('comments:list:version'));
     }
 
     public function test_duplicate_email_and_invalid_home_page_are_rejected(): void

@@ -2,7 +2,7 @@
 
 ## Status
 
-REVIEW
+COMPLETED
 
 ## Goal
 
@@ -107,6 +107,7 @@ REVIEW
 - Добавлены focused lifecycle tests; README и Scramble-generated OpenAPI отражают API contract.
 - Проверки: полный PHPUnit suite на SQLite и MySQL — по 49 tests / 304 assertions; lifecycle suite — 10 tests / 86 assertions; Pint, Scramble export с `--fail-on-unknown`, `git diff --check` — passed.
 - Отклонений от SOW / Architecture / DB нет.
+- Пользователь одобрил TASK-006; task-spec перенесена из `active/` в `completed/`, backlog marker установлен в `[x]`.
 
 ## Proposed commit
 

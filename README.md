@@ -27,7 +27,7 @@ docker compose exec app php artisan key:generate
 
 Порты можно переопределить в `.env` (`APP_HTTP_PORT`, `VITE_PORT`, `MYSQL_PORT`, `REDIS_PORT`, `RABBITMQ_PORT`, `RABBITMQ_MANAGEMENT_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT`, `REVERB_HOST_PORT`); все переменные с портами уже перечислены в `.env.example`. `REVERB_PORT` остаётся внутренним портом контейнера. Development credentials из `.env.example` предназначены только для локальной разработки. Compose передаёт параметры подключения сервисам через environment.
 
-Laravel использует `REVERB_HOST=reverb` и внутренний порт 8080 для соединений между контейнерами. Vite получает отдельный browser адрес `localhost` и опубликованный `REVERB_HOST_PORT`. Laravel Echo и broadcast event flows подключаются в последующих задачах; текущая задача подготавливает доступный Reverb endpoint.
+Laravel использует `REVERB_HOST=reverb` и внутренний порт 8080 для соединений между контейнерами. Vite получает отдельный browser адрес `localhost` и опубликованный `REVERB_HOST_PORT`. `CommentCreated` публикуется через очередь RabbitMQ `broadcasts` и Reverb; Laravel Echo получает событие, debounce-ит его и загружает текущую REST-страницу комментариев повторно.
 
 Проверить состояние контейнеров и логи:
 
@@ -102,6 +102,20 @@ API описание обновляется Scramble и доступно по а
 Publication requests require `g-recaptcha-response`. Guests also submit `guest_name`, `guest_email`, optional `guest_home_page`, and `text`; authenticated users submit only `text` and derive author fields from their profile. Both can submit `attachments[]` (0–3 files). Reply requests add `parent_id`. Update requests can retain existing files with `attachments_to_keep[]` and add replacements with `attachments[]`; the final set is limited to three. Successful writes return the comment resource, including per-request `can_edit`/`can_delete` flags and attachment read URLs. Preview takes only `text`; draft files remain in the browser until publication.
 
 Published attachments use the private `local` disk. `MEDIA_IMAGE_MAX_MB` sets the configurable image upload limit (default 10 MB); TXT files are limited to 100 KB. Synchronous previews use Imagick and fit within 320×240 without upscaling; GIF previews use their first frame. TXT reads use a download disposition with `nosniff`; deleted comments and their attachments cannot be fetched.
+
+## Redis cache, queues and realtime
+
+Публичные comment trees кэшируются в Redis через generation `comments:list:version`; TTL задаётся переменной `COMMENTS_CACHE_TTL` (по умолчанию 60 секунд). Create/update/delete, изменение attachments и profile update увеличивают generation. Ключи включают generation, sort, direction и page; authorization flags вычисляются после чтения общего cached tree.
+
+Сервис `queue-worker` обрабатывает очереди RabbitMQ `broadcasts` и `mail`. Для диагностики очередей и повторной доставки:
+
+```bash
+docker compose logs -f queue-worker reverb rabbitmq
+docker compose exec app php artisan queue:failed
+docker compose exec app php artisan queue:retry all
+```
+
+Публикация комментария отправляет `CommentCreated` и queued broadcast. После получения события Laravel Echo делает debounce и запрашивает текущую comments page через REST; REST остаётся источником данных для отсортированного дерева.
 
 Письма локальной разработки отправляются в Mailpit; они видны в его UI. Чтобы остановить окружение, сохранив данные сервисов, используйте `docker compose down`. Команда `docker compose down -v` удаляет named volumes вместе с данными MySQL, Redis, RabbitMQ и Mailpit.
 

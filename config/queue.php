@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'default' => env('QUEUE_CONNECTION', 'database'),
+    'default' => env('QUEUE_CONNECTION', 'rabbitmq'),
 
     /*
     |--------------------------------------------------------------------------
@@ -88,6 +88,7 @@ return [
             ],
             'options' => [],
             'worker' => env('RABBITMQ_WORKER', 'default'),
+            'after_commit' => true,
         ],
 
         'deferred' => [

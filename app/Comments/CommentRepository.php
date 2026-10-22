@@ -11,7 +11,14 @@ class CommentRepository
 {
     private const PAGE_SIZE = 25;
 
+    public function __construct(private readonly CommentListCache $cache) {}
+
     public function paginatePublicTree(string $sortBy = 'date', string $direction = 'desc', int $page = 1): LengthAwarePaginator
+    {
+        return $this->cache->remember($sortBy, $direction, $page, fn (): LengthAwarePaginator => $this->loadPublicTree($sortBy, $direction, $page));
+    }
+
+    private function loadPublicTree(string $sortBy, string $direction, int $page): LengthAwarePaginator
     {
         $roots = Comment::withTrashed()
             ->with(['user'])
