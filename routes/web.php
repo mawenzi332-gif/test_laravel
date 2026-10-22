@@ -10,6 +10,12 @@ Route::get('/', function () {
     return view('app');
 });
 
+Route::view('/login', 'app');
+Route::view('/register', 'app');
+Route::view('/forgot-password', 'app');
+Route::get('/reset-password/{token}', fn () => view('app'));
+Route::view('/profile', 'app');
+
 Route::prefix('api/v1/auth')->group(function (): void {
     Route::post('/register', [RegisteredUserController::class, 'store'])
         ->middleware(['guest:web', 'throttle:registration'])

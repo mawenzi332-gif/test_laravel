@@ -445,7 +445,7 @@ TASK-004, TASK-006.
 
 ---
 
-## [ ] TASK-008 — SPA accounts and profile
+## [x] TASK-008 — SPA accounts and profile
 
 **Legacy mapping:** old TASK-023–TASK-024.
 

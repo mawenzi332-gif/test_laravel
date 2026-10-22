@@ -2,6 +2,60 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-008 — SPA accounts and profile
+
+**Статус:** принято
+**Дата:** 2026-10-22
+
+### Что реализовано
+
+- Vue placeholder дополнен account/profile SPA маршрутами: регистрация, вход/выход, восстановление пароля и профиль.
+- Добавлены единый Axios client с Sanctum CSRF/session flow, небольшие auth/profile API-модули и Pinia store для текущего пользователя.
+- Добавлены состояния загрузки, отправки, успеха и ошибок; frontend validation дополняет серверную.
+- Laravel отдаёт SPA shell при прямом открытии account routes; добавлен feature test на deep links.
+
+### Как это реализовано
+
+При инициализации SPA auth store читает `/api/v1/me`, а router использует это состояние для защиты `/profile` и скрытия account screens от уже вошедшего пользователя. Auth mutations сначала получают Sanctum CSRF cookie, затем используют session endpoints. Profile patch возвращает пользователя, который сразу обновляет Pinia. Reset page берёт token из route и email из query string.
+
+### Основные изменённые области
+
+- `resources/js/api/`, `resources/js/stores/auth.js`, `resources/js/router/index.js`, `resources/js/views/`, `resources/js/App.vue`
+- `routes/web.php`, `tests/Feature/SpaAccountRoutesTest.php`
+- `README.md`, `docs/tasks/backlog.md`, `docs/tasks/completed/TASK-008-spa-accounts-profile.md`
+
+### Проверки
+
+- `docker compose exec -T app php artisan test --filter='AccountAuthTest|ProfileAndAbuseProtectionTest|SpaAccountRoutesTest'` — passed: 15 tests / 73 assertions.
+- `docker compose exec -T app vendor/bin/pint --test routes/web.php tests/Feature/SpaAccountRoutesTest.php` — passed: 2 files.
+- `npx vite build --outDir /tmp/task008-vite-build` — passed.
+- `git diff --check` — passed.
+- `npm run build` — не смог очистить старый `public/build/assets/app-CioeGze0.js`, принадлежащий `nobody`; артефакты сохранены, compilation проверена во временном каталоге.
+
+### Документация
+
+- README: добавлены account routes и поведение восстановления сессии при refresh.
+- OpenAPI: без изменений — API contract уже реализован TASK-004.
+- Другое: task-spec содержит ручной browser walkthrough; automated frontend component harness отсутствует.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет.
+
+### Известные ограничения / нерешённые вопросы
+
+- Полный browser walkthrough не выполнялся в CLI-сеансе; сценарий для ручной проверки включён в task-spec. Backend API и SPA route shell покрыты feature tests, production frontend compilation проходит.
+- Стандартный build output в `public/build` недоступен для очистки из-за прав старых файлов; текущие build artifacts не изменялись.
+
+### Предлагаемый commit
+
+`feat(TASK-008): implement SPA account and profile flows`
+
+### Финализация
+
+- Пользователь одобрил TASK-008; task-spec перенесена в `completed/`, backlog marker установлен в `[x]`, статус записи — `принято`.
+- Commit не создавался; изменения готовы к пользовательскому commit.
+
 ## TASK-007 — Redis cache, RabbitMQ queues and realtime comments
 
 **Статус:** принято

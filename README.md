@@ -84,6 +84,8 @@ Fortify предоставляет session-based endpoints:
 
 Локальное письмо password reset доступно в Mailpit UI по адресу <http://localhost:8025>; ссылка открывает SPA путь `/reset-password/{token}` и передаёт email query parameter. Настройки лимитов можно изменить в `.env`: `REGISTRATION_RATE_LIMIT[_DECAY]`, `LOGIN_RATE_LIMIT[_DECAY]`, `PASSWORD_RECOVERY_RATE_LIMIT[_DECAY]` и `COMMENT_RATE_LIMIT[_DECAY]`. reCAPTCHA v2 credentials задаются через `NOCAPTCHA_SITEKEY` и `NOCAPTCHA_SECRET`; валидационное правило `captcha` предназначено для будущих comment publication endpoints, оно не включено в account формы.
 
+SPA account pages: `/register`, `/login`, `/forgot-password`, `/reset-password/{token}` и защищённый `/profile`. Состояние авторизации при открытии приложения или обновлении страницы восстанавливается запросом `/api/v1/me`; переход на `/profile` без сессии ведёт на вход. Для проверки password reset откройте присланное письмо в Mailpit и завершите сценарий на SPA странице.
+
 API описание обновляется Scramble и доступно по адресу <http://localhost:8080/docs/api>.
 
 ## Public comments API

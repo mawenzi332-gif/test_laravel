@@ -2,9 +2,13 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router/index.js';
+import { useAuthStore } from './stores/auth.js';
 import '../css/app.css';
 
-createApp(App)
-    .use(createPinia())
-    .use(router)
-    .mount('#app');
+const app = createApp(App);
+const pinia = createPinia();
+
+app.use(pinia);
+app.use(router);
+useAuthStore(pinia).initialize().catch(() => {});
+app.mount('#app');
