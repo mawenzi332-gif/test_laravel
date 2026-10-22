@@ -2,6 +2,65 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-010 — Quality gate: OpenAPI, observability, security, tests, performance and CI
+
+**Статус:** принято
+**Дата:** 2026-10-22
+
+### Что реализовано
+
+- Scramble теперь отражает единый API error envelope, включая validation/auth/authorization/not found/rate limit/internal responses. Явно описаны pagination metadata comments list и реальные success statuses Fortify registration/logout/reset flows.
+- Добавлен OpenAPI contract checker для 11 paths/14 operations, pagination fields, success codes и схемы ошибок.
+- Неверная/отсутствующая CAPTCHA нормализуется в отдельный `CAPTCHA_FAILED` response code согласно утверждённому API error contract.
+- Добавлен GitHub Actions quality workflow: PHP/Node setup, Pint, SQLite regression suite, MySQL constraint tests, Vite build и OpenAPI export/check; сервисы MySQL, Redis и RabbitMQ доступны в job.
+- Удалены два scaffold tests. Добавлена SQL-injection-shaped sorting regression проверка; tree read test утверждает пять SQL queries на cache miss и постоянный query count при росте дерева.
+- Выполнен logging/security self-check и сохранены findings, EXPLAIN планы и известные пределы измерения в quality report.
+
+### Как это реализовано
+
+`ApiErrorResponses` применяет общую error schema к Scramble operations `/api/v1`, сохраняя status codes, определённые по runtime exceptions/routes, и дополняя package-managed Fortify endpoints. В OpenAPI `server` задаёт `/api`, поэтому operations находятся под `/v1`. `scripts/check-openapi.php` проверяет обязательные paths, пагинацию, success statuses и error envelope после генерации.
+
+Comments cache-miss test считает запросы при одном root с 10 replies, затем при тех же условиях с 18 replies; оба прохода используют пять запросов. MySQL EXPLAIN выбрал `comments_root_created_idx` для root pagination и `comments_tree_idx` для visibility/tree lookup. Смешанная сортировка автора ожидаемо требует `Using temporary; Using filesort`.
+
+### Основные изменённые области
+
+- `.github/workflows/quality.yml`, `app/OpenApi/ApiErrorResponses.php`, `config/scramble.php`, `scripts/check-openapi.php`
+- `app/Http/Controllers/Api/V1/CommentController.php`, `tests/Feature/CommentReadApiTest.php`
+- `README.md`, `docs/reports/TASK-010-quality-report.md`, `docs/tasks/backlog.md`, `docs/tasks/completed/TASK-010-quality-gate.md`
+- удалены `tests/Feature/ExampleTest.php`, `tests/Unit/ExampleTest.php`
+
+### Проверки
+
+- `docker compose exec -T app php artisan test --compact` — passed: 56 tests / 349 assertions.
+- `docker compose exec -T -e DB_CONNECTION=mysql -e DB_HOST=mysql -e DB_DATABASE=comments_task003_test -e DB_USERNAME=comments -e DB_PASSWORD=comments app php artisan test --compact --filter=MySqlCommentConstraintTest` — passed: 4 tests / 11 assertions.
+- `docker compose exec -T app vendor/bin/pint --test` — passed: 77 files.
+- `docker compose exec -T vite npm run build -- --outDir /tmp/task-010-final-build` — passed: 194 modules.
+- `docker compose exec -T app php artisan scramble:export --path=/tmp/task-010-openapi-final.json --fail-on-unknown` и `docker compose exec -T app php scripts/check-openapi.php /tmp/task-010-openapi-final.json` — passed: OpenAPI 3.1, 11 paths / 14 operations.
+- `docker compose config --quiet`, YAML parse через PyYAML и `git diff --check` — passed.
+- GitHub hosted Actions ещё не запускался: его результат возможен после пользовательского push.
+- Read-only GET пустой comments page: HTTP 200, 0 roots, JSON body 517 bytes; это только baseline envelope, не populated-page benchmark.
+
+### Документация
+
+- README: добавлены команды quality checks, описание OpenAPI checker и ссылки на quality evidence.
+- OpenAPI: исправлены ответы validation/error, пагинационная схема и фактические Fortify success contracts.
+- Другое: добавлен `docs/reports/TASK-010-quality-report.md`; approved SOW/Architecture/DB не менялись.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет.
+
+### Известные ограничения / нерешённые вопросы
+
+- EXPLAIN выполнен на небольшом локальном наборе данных; проверяет выбранные индексы и форму запроса, но не нагрузочную задержку на production объёмах.
+- Hosted GitHub Actions не запускался до push.
+- Mixed Guest/Registered author sort использует temporary/filesort согласно утверждённой query strategy; дополнительных индексов без evidence bottleneck не добавлялось.
+- Один параллельный suite run дал единичный невоспроизводимый сбой date-sort assertion; два последующих serial suite run и два focused read suite run прошли.
+
+### Предлагаемый commit
+
+`test(TASK-010): complete application quality gate`
+
 ## TASK-009 — Comments SPA: tree, editor, attachments, CRUD and realtime UX
 
 **Статус:** принято

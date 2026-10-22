@@ -565,7 +565,7 @@ TASK-005–008.
 
 ---
 
-## [ ] TASK-010 — Quality gate: OpenAPI, observability, security, tests, performance and CI
+## [x] TASK-010 — Quality gate: OpenAPI, observability, security, tests, performance and CI
 
 **Legacy mapping:** old TASK-032–TASK-037.
 

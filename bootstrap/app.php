@@ -42,12 +42,18 @@ return Application::configure(basePath: dirname(__DIR__))
             $validationErrors = $exception instanceof ValidationException ? $exception->errors() : [];
             $failedLogin = $request->routeIs('login.store')
                 && ($validationErrors['email'][0] ?? null) === trans('auth.failed');
+            $captchaFailed = array_key_exists('g-recaptcha-response', $validationErrors);
 
             [$code, $message, $details] = match (true) {
                 $failedLogin => [
                     'AUTHENTICATION_FAILED',
                     'The provided credentials are incorrect.',
                     (object) [],
+                ],
+                $captchaFailed => [
+                    'CAPTCHA_FAILED',
+                    'CAPTCHA verification failed.',
+                    $validationErrors,
                 ],
                 $exception instanceof ValidationException => [
                     'VALIDATION_ERROR',

@@ -127,6 +127,22 @@ docker compose exec app php artisan queue:retry all
 
 Письма локальной разработки отправляются в Mailpit; они видны в его UI. Чтобы остановить окружение, сохранив данные сервисов, используйте `docker compose down`. Команда `docker compose down -v` удаляет named volumes вместе с данными MySQL, Redis, RabbitMQ и Mailpit.
 
+## Quality checks и CI
+
+GitHub Actions workflow `.github/workflows/quality.yml` запускает Pint, backend regression suite, отдельную проверку MySQL constraints, production build и проверку OpenAPI. Для CI используются тестовые credentials и services; внешние CAPTCHA и SMTP providers не вызываются.
+
+Локальные команды в Docker:
+
+```bash
+docker compose exec app php artisan test --compact
+docker compose exec app vendor/bin/pint --test
+docker compose exec vite npm run build -- --outDir /tmp/comments-build
+docker compose exec app php artisan scramble:export --path=/tmp/openapi.json --fail-on-unknown
+docker compose exec app php scripts/check-openapi.php /tmp/openapi.json
+```
+
+OpenAPI проверка сверяет API paths, пагинационные поля списка, известные success statuses и общий JSON error envelope. Performance и security evidence, включая ограничения измерений и `EXPLAIN`, записаны в `docs/reports/TASK-010-quality-report.md`.
+
 Production assets собираются в Vite container. PHP tests и Pint можно запустить в общем PHP container:
 
 ```bash

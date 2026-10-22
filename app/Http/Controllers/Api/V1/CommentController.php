@@ -12,6 +12,7 @@ use App\Http\Requests\StoreCommentRequest;
 use App\Http\Requests\UpdateCommentRequest;
 use App\Http\Resources\CommentResource;
 use App\Models\Comment;
+use Dedoc\Scramble\Attributes\Response as OpenApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -19,6 +20,10 @@ use Illuminate\Support\Facades\Gate;
 
 class CommentController extends Controller
 {
+    #[OpenApiResponse(
+        status: 200,
+        type: 'array{data: list<CommentResource>, links: array{first: string|null, last: string|null, prev: string|null, next: string|null}, meta: array{current_page: int, from: int|null, last_page: int, links: list<array{url: string|null, label: string, active: bool}>, path: string, per_page: int, to: int|null, total: int}}'
+    )]
     public function index(ListCommentsRequest $request, CommentRepository $comments): AnonymousResourceCollection
     {
         $validated = $request->validated();

@@ -1,0 +1,89 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend-and-contract:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: comments_test
+          MYSQL_USER: comments
+          MYSQL_PASSWORD: comments
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+      rabbitmq:
+        image: rabbitmq:4-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: comments
+          RABBITMQ_DEFAULT_PASS: comments
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: ctype, curl, dom, exif, fileinfo, gd, iconv, imagick, mbstring, mysqli, pdo_mysql, pdo_sqlite, redis, sqlite3, xml
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check PHP formatting
+        run: vendor/bin/pint --test
+
+      - name: Run regression suite
+        run: php artisan test --compact
+
+      - name: Verify MySQL constraints
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: comments_test
+          DB_USERNAME: comments
+          DB_PASSWORD: comments
+        run: php artisan test --compact --filter=MySqlCommentConstraintTest
+
+      - name: Build frontend
+        run: npm run build -- --outDir /tmp/comments-quality-build
+
+      - name: Export and check OpenAPI
+        run: |
+          php artisan scramble:export --path=/tmp/openapi.json --fail-on-unknown
+          php scripts/check-openapi.php /tmp/openapi.json

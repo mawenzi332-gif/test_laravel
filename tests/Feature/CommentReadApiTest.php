@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class CommentReadApiTest extends TestCase
@@ -98,6 +99,13 @@ class CommentReadApiTest extends TestCase
         $this->getJson('/api/v1/comments?sort_by=body')
             ->assertUnprocessable()
             ->assertJsonPath('error.code', 'VALIDATION_ERROR');
+
+        $injectedSort = urlencode('date desc; DROP TABLE comments --');
+        $this->getJson('/api/v1/comments?sort_by='.$injectedSort)
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
+
+        $this->assertTrue(Schema::hasTable('comments'));
     }
 
     public function test_it_prunes_deleted_leaves_and_keeps_only_required_tombstones(): void
@@ -161,6 +169,7 @@ class CommentReadApiTest extends TestCase
         $this->getJson('/api/v1/comments')->assertOk();
         $largeCount = count(DB::getQueryLog());
 
+        $this->assertSame(5, $smallCount, 'A cache miss should use the root count/list, tree, author and media queries.');
         $this->assertSame($smallCount, $largeCount);
     }
 

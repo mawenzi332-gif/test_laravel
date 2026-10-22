@@ -111,7 +111,7 @@ class CommentPublicationLifecycleTest extends TestCase
             'text' => 'no captcha',
             'guest_name' => 'Guest',
             'guest_email' => 'guest@example.test',
-        ])->assertUnprocessable()->assertJsonPath('error.code', 'VALIDATION_ERROR');
+        ])->assertUnprocessable()->assertJsonPath('error.code', 'CAPTCHA_FAILED');
 
         $this->assertDatabaseCount('comments', 0);
     }
