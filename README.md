@@ -90,6 +90,12 @@ API описание обновляется Scramble и доступно по а
 
 ## Public comments API
 
+Главная SPA страница отображает дерево комментариев: root comments сортируются по дате, имени или e-mail, ответы остаются хронологическими, а страницы содержат до 25 корневых комментариев со всеми ответами. Авторизованный владелец видит controls редактирования и удаления; удалённый родитель остаётся tombstone, когда под ним есть видимые ответы.
+
+Guest указывает имя и e-mail при публикации. Авторизованный пользователь публикует от имени своего профиля; эти поля доступны для просмотра, но не редактируются в форме комментария. Для root comment и reply обе формы требуют Google reCAPTCHA v2. Локальные CAPTCHA keys задаются через `NOCAPTCHA_SITEKEY` и `NOCAPTCHA_SECRET`; frontend site key автоматически берётся из `VITE_NOCAPTCHA_SITEKEY` в `.env.example`.
+
+Редактор ограничен форматированием Italic, Bold, Code и Link. Предпросмотр получает sanitized HTML с backend, а выбранные файлы остаются в браузере до публикации. До трёх JPG/JPEG/PNG/GIF/TXT можно добавлять, удалять и заменять; изображения показываются в image viewer, TXT скачиваются. Лимит изображений задаётся `MEDIA_IMAGE_MAX_MB` и передаётся frontend через `VITE_MEDIA_IMAGE_MAX_MB`. После `comment.created` SPA обновляет текущий список через debounced REST-запрос.
+
 `GET /api/v1/comments` returns 25 root comments per page with their complete nested reply trees. Root comments can be sorted by `date`, `name`, or `email` using `sort_by`, with `direction=asc|desc`; the default is `date` descending. Replies remain chronological. The response resolves registered authors from the current profile and represents deleted ancestors as content-free tombstones only when they contain visible descendants.
 
 | Method | Endpoint | Purpose |

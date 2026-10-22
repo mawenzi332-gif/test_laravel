@@ -155,6 +155,24 @@ class CommentPublicationLifecycleTest extends TestCase
             ->assertJsonPath('error.details.attachments_to_keep.0', 'Only attachments belonging to this comment may be kept.');
     }
 
+    public function test_multipart_method_spoof_can_remove_every_attachment(): void
+    {
+        $owner = User::factory()->create();
+        $comment = Comment::create(['user_id' => $owner->id, 'body_html' => 'before']);
+        $media = $comment->addMedia(UploadedFile::fake()->createWithContent('old.txt', 'old'))->toMediaCollection('attachments');
+
+        $this->actingAs($owner)->post("/api/v1/comments/{$comment->id}", [
+            '_method' => 'PATCH',
+            '_attachments_to_keep_empty' => '1',
+            'text' => 'after',
+        ])->assertOk()
+            ->assertJsonPath('data.body_html', 'after')
+            ->assertJsonCount(0, 'data.attachments');
+
+        $this->assertDatabaseMissing('media', ['id' => $media->id]);
+        $this->assertSame(0, $comment->fresh()->getMedia('attachments')->count());
+    }
+
     public function test_edit_rejects_a_final_attachment_set_over_the_limit_without_changing_existing_state(): void
     {
         $owner = User::factory()->create();

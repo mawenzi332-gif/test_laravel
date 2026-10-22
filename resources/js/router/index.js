@@ -1,10 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import HomeView from '../views/HomeView.vue';
-import LoginView from '../views/LoginView.vue';
-import RegisterView from '../views/RegisterView.vue';
-import ForgotPasswordView from '../views/ForgotPasswordView.vue';
-import ResetPasswordView from '../views/ResetPasswordView.vue';
-import ProfileView from '../views/ProfileView.vue';
 import { useAuthStore } from '../stores/auth.js';
 
 const router = createRouter({
@@ -13,13 +7,13 @@ const router = createRouter({
         {
             path: '/',
             name: 'home',
-            component: HomeView,
+            component: () => import('../views/HomeView.vue'),
         },
-        { path: '/login', name: 'login', component: LoginView, meta: { guestOnly: true } },
-        { path: '/register', name: 'register', component: RegisterView, meta: { guestOnly: true } },
-        { path: '/forgot-password', name: 'forgot-password', component: ForgotPasswordView, meta: { guestOnly: true } },
-        { path: '/reset-password/:token', name: 'reset-password', component: ResetPasswordView, meta: { guestOnly: true } },
-        { path: '/profile', name: 'profile', component: ProfileView, meta: { requiresAuth: true } },
+        { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { guestOnly: true } },
+        { path: '/register', name: 'register', component: () => import('../views/RegisterView.vue'), meta: { guestOnly: true } },
+        { path: '/forgot-password', name: 'forgot-password', component: () => import('../views/ForgotPasswordView.vue'), meta: { guestOnly: true } },
+        { path: '/reset-password/:token', name: 'reset-password', component: () => import('../views/ResetPasswordView.vue'), meta: { guestOnly: true } },
+        { path: '/profile', name: 'profile', component: () => import('../views/ProfileView.vue'), meta: { requiresAuth: true } },
     ],
 });
 

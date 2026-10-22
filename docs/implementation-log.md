@@ -2,6 +2,63 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-009 — Comments SPA: tree, editor, attachments, CRUD and realtime UX
+
+**Статус:** принято
+**Дата:** 2026-10-22
+
+### Что реализовано
+
+- Главная страница теперь загружает дерево комментариев, сортирует root comments по дате/имени/e-mail, показывает 25 корневых записей на странице, replies, tombstones и Edited marker.
+- Добавлены Guest и Registered формы root/reply, profile author read-only presentation, CAPTCHA, ограниченный Tiptap toolbar, server-sanitized preview и обработка ошибок API.
+- Добавлены browser-side attachments с local image preview и add/remove/replace, редактирование текста/вложений владельцем, подтверждение удаления, attachment original/preview/TXT UI и Bootstrap image modal.
+- Добавлен debounced Echo/Reverb listener с REST refetch; мобильные стили ограничивают накопление отступа для глубокой иерархии.
+- Browser walkthrough выявил и помог исправить отсутствующую Tiptap document schema, потерю расширения в имени attachment и накапливающийся отступ на глубоком mobile tree.
+- Для multipart edit добавлена нормализация пустого keep-set, чтобы владелец мог удалить все вложения; публичная семантика API не менялась.
+- Маршруты и тяжёлый composer загружаются отдельными chunks; Compose передаёт CAPTCHA site key и image size limit в Vite.
+
+### Как это реализовано
+
+`resources/js/api/comments.js` инкапсулирует list/preview/create/update/delete REST calls. `HomeView` отвечает за pagination, sorting, loading/error states и подписку Echo. `CommentNode` рекурсивно показывает разрешённые `CommentResource` поля, а `CommentComposer` обслуживает create/reply/edit режимы и работает с локальными `File[]`. Опубликованный HTML отображается только после backend sanitization; preview получает тот же sanitized fragment с backend. `UpdateCommentRequest` переводит внутренний multipart marker в `attachments_to_keep: []`, иначе PHP form encoding не мог бы однозначно передать пустой массив.
+
+### Основные изменённые области
+
+- `resources/js/views/HomeView.vue`, `resources/js/router/index.js`, `resources/js/api/comments.js`, `resources/js/components/`
+- `resources/css/app.css`, `.env.example`, `compose.yaml`, `README.md`
+- `app/Http/Requests/UpdateCommentRequest.php`, `tests/Feature/CommentPublicationLifecycleTest.php`
+- `docs/tasks/backlog.md`, `docs/tasks/completed/TASK-009-comments-spa.md`
+
+### Проверки
+
+- `docker compose exec -T app php artisan test` — passed: 58 tests / 347 assertions.
+- `docker compose exec -T app vendor/bin/pint --test` — passed: 76 files.
+- `npx vite build --outDir /tmp/test-laravel-task009-build --emptyOutDir` — passed; 194 modules, route/editor chunks.
+- `docker compose config --quiet` — passed.
+- HTTP smoke: `/`, `/api/v1/comments`, `/@vite/client`, `HomeView.vue` и `CommentComposer.vue` — HTTP 200.
+- Playwright walkthrough: Guest/Registered create и reply, тестовая CAPTCHA, sorting без navigation, preview/Italic, локальный image preview, attachment create/replace с полным именем, owner edit/delete/tombstone, Bootstrap image modal и два browser context с Echo broadcast + REST refetch — passed.
+- Playwright mobile viewport 390px: глубокое дерево (9 уровней) не создаёт горизонтальный overflow; indentation ограничен — passed.
+- `git diff --check` — passed.
+- Обычный `npm run build` не может очистить старые Docker-owned файлы `public/build`; production build выполнен во временный каталог, artifacts проекта сохранены.
+
+### Документация
+
+- README: добавлены comments SPA flows, CAPTCHA и image-limit env, локальные вложения и realtime refetch.
+- OpenAPI: без изменений — backend contract не менялся.
+- Другое: TASK-009 одобрена, task-spec перенесён в completed, backlog marker установлен в COMPLETED.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет.
+
+### Известные ограничения / нерешённые вопросы
+
+- В репозитории нет отдельного browser test runner; Playwright/Chromium, доступные в WSL cache, использованы для разового walkthrough, без добавления test harness в проект.
+- Официальные Google reCAPTCHA v2 test keys из локального `.env` подтвердили интеграционный flow. Они не заменяют production credentials. Google iframe выдаёт `requestStorageAccess: Permission denied`, но test challenge и backend validation проходят.
+
+### Предлагаемый commit
+
+`feat(TASK-009): implement comments SPA workflows`
+
 ## TASK-008 — SPA accounts and profile
 
 **Статус:** принято

@@ -486,7 +486,7 @@ TASK-004.
 
 ---
 
-## [ ] TASK-009 — Comments SPA: tree, editor, attachments, CRUD and realtime UX
+## [x] TASK-009 — Comments SPA: tree, editor, attachments, CRUD and realtime UX
 
 **Legacy mapping:** old TASK-025–TASK-031.
 

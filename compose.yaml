@@ -81,6 +81,8 @@ services:
       VITE_REVERB_HOST: localhost
       VITE_REVERB_PORT: ${REVERB_HOST_PORT:-8081}
       VITE_REVERB_SCHEME: http
+      VITE_NOCAPTCHA_SITEKEY: ${NOCAPTCHA_SITEKEY:-}
+      VITE_MEDIA_IMAGE_MAX_MB: ${MEDIA_IMAGE_MAX_MB:-10}
     depends_on:
       app:
         condition: service_started

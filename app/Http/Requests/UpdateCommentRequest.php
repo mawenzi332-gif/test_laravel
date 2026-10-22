@@ -9,6 +9,13 @@ use Illuminate\Validation\Validator;
 
 class UpdateCommentRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if ($this->input('_attachments_to_keep_empty') === '1') {
+            $this->merge(['attachments_to_keep' => []]);
+        }
+    }
+
     public function authorize(): bool
     {
         return $this->user()?->can('update', $this->route('comment')) ?? false;
