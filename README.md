@@ -90,7 +90,18 @@ API описание обновляется Scramble и доступно по а
 
 `GET /api/v1/comments` returns 25 root comments per page with their complete nested reply trees. Root comments can be sorted by `date`, `name`, or `email` using `sort_by`, with `direction=asc|desc`; the default is `date` descending. Replies remain chronological. The response resolves registered authors from the current profile and represents deleted ancestors as content-free tombstones only when they contain visible descendants.
 
-Published attachments use the private `local` disk. `MEDIA_IMAGE_MAX_MB` sets the configurable image upload limit (default 10 MB); TXT files are limited to 100 KB. Synchronous previews use Imagick and fit within 320×240 without upscaling; GIF previews use their first frame.
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/comments` | Publish a root comment or reply (`parent_id` optional) |
+| `POST` | `/api/v1/comments/preview` | Return sanitized `body_html` without saving a draft |
+| `PATCH` | `/api/v1/comments/{id}` | Owner update of `text` and optional attachment set |
+| `DELETE` | `/api/v1/comments/{id}` | Owner soft-delete; preserves descendants |
+| `GET` | `/api/v1/attachments/{id}` | Read an active attachment original |
+| `GET` | `/api/v1/attachments/{id}/preview` | Read an active image preview |
+
+Publication requests require `g-recaptcha-response`. Guests also submit `guest_name`, `guest_email`, optional `guest_home_page`, and `text`; authenticated users submit only `text` and derive author fields from their profile. Both can submit `attachments[]` (0–3 files). Reply requests add `parent_id`. Update requests can retain existing files with `attachments_to_keep[]` and add replacements with `attachments[]`; the final set is limited to three. Successful writes return the comment resource, including per-request `can_edit`/`can_delete` flags and attachment read URLs. Preview takes only `text`; draft files remain in the browser until publication.
+
+Published attachments use the private `local` disk. `MEDIA_IMAGE_MAX_MB` sets the configurable image upload limit (default 10 MB); TXT files are limited to 100 KB. Synchronous previews use Imagick and fit within 320×240 without upscaling; GIF previews use their first frame. TXT reads use a download disposition with `nosniff`; deleted comments and their attachments cannot be fetched.
 
 Письма локальной разработки отправляются в Mailpit; они видны в его UI. Чтобы остановить окружение, сохранив данные сервисов, используйте `docker compose down`. Команда `docker compose down -v` удаляет named volumes вместе с данными MySQL, Redis, RabbitMQ и Mailpit.
 

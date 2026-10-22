@@ -2,6 +2,60 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-006 — Comment publication lifecycle
+
+**Статус:** готово к ревью
+**Дата:** 2026-10-22
+
+### Что реализовано
+
+- Добавлены публикация root/reply для Guest и Registered через `POST /api/v1/comments`: обязательная CAPTCHA, limiter, условная author validation, общий sanitizer и private Media Library attachments.
+- Добавлен `POST /api/v1/comments/preview`, который возвращает sanitized `body_html` без создания Comment/Media.
+- Добавлены owner-only `PATCH`/`DELETE`, `CommentPolicy`, keep/new attachment synchronization, итоговый лимит в 3 файла и `edited_at` только при реальном изменении.
+- При delete attachments удаляются, comment получает `deletion_type=user` и SoftDelete; существующее read-side дерево сохраняет необходимый tombstone.
+- Добавлены public read endpoints для originals и image previews. TXT скачивается с `text/plain; charset=UTF-8`, `Content-Disposition: attachment` и `X-Content-Type-Options: nosniff`; файлы удалённых comments недоступны.
+- `CommentResource` отдаёт ссылки вложений и вычисляемые на запросе `can_edit`/`can_delete`.
+
+### Как это реализовано
+
+`StoreCommentRequest`, `PreviewCommentRequest` и `UpdateCommentRequest` держат validation boundary. `CommentService` разрешает непосредственного parent и вычисляет root, sanitizes body и синхронно сохраняет Comment с Media Library. При update backend проверяет, что все keep IDs принадлежат comment, считает итоговый attachment set и отмечает `edited_at` только при изменении текста или файлов. `CommentPolicy` запрещает ownership workflow для Guest и чужих/удалённых comments. `AttachmentController` принимает только media из collection `attachments`, связанное с активным comment.
+
+### Основные изменённые области
+
+- `app/Comments/CommentService.php`, `app/Policies/CommentPolicy.php`
+- `app/Http/Controllers/Api/V1/CommentController.php`, `app/Http/Controllers/Api/V1/AttachmentController.php`
+- `app/Http/Requests/StoreCommentRequest.php`, `UpdateCommentRequest.php`, `PreviewCommentRequest.php`
+- `app/Http/Resources/CommentResource.php`, `routes/api.php`
+- `tests/Feature/CommentPublicationLifecycleTest.php`, `README.md`
+- `docs/tasks/backlog.md`, `docs/tasks/active/TASK-006-comment-publication-lifecycle.md`
+
+### Проверки
+
+- `docker compose exec -T app php artisan test --compact` — passed on SQLite: 49 tests, 304 assertions.
+- `docker compose exec -T app php artisan test --compact tests/Feature/CommentPublicationLifecycleTest.php` — passed: 10 tests, 86 assertions.
+- `docker compose exec -T -e DB_CONNECTION=mysql -e DB_DATABASE=comments_task003_test -e DB_USERNAME=comments -e DB_PASSWORD=comments app php artisan test --compact` — passed: 49 tests, 304 assertions.
+- `docker compose exec -T app vendor/bin/pint --test` — passed: 67 files.
+- `docker compose exec -T app php artisan scramble:export --path=/tmp/task-006-openapi.json --fail-on-unknown` — passed; проверены paths, multipart request schemas, preview schema и CommentResource fields.
+- `git diff --check` — passed.
+
+### Документация
+
+- README: добавлены comment write/preview/edit/delete и attachment read API, payload fields и ограничения.
+- OpenAPI: Scramble export отражает publication/update multipart requests, preview, ownership endpoints и attachment reads.
+- Другое: TASK-006 переведена в REVIEW (`[?]`); основные approved specs не менялись.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет.
+
+### Известные ограничения / нерешённые вопросы
+
+- MySQL и filesystem не образуют одну ACID transaction. Для новых вложений при rollback выполняется compensating cleanup с logging; cleanup failures также логируются.
+
+### Предлагаемый commit
+
+`feat(TASK-006): implement comment publication lifecycle`
+
 ## TASK-005 — Comment read domain: sanitizer, media foundation, tree, sorting and list API
 
 **Статус:** принято

@@ -267,7 +267,7 @@ TASK-003. TASK-004 нужен для полноценного Registered author 
 
 ---
 
-## [ ] TASK-006 — Comment publication lifecycle: create, preview, ownership, edit, delete and attachment reads
+## [?] TASK-006 — Comment publication lifecycle: create, preview, ownership, edit, delete and attachment reads
 
 **Legacy mapping:** old TASK-014–TASK-019.
 
