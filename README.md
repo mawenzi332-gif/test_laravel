@@ -84,7 +84,7 @@ Fortify предоставляет session-based endpoints:
 
 Локальное письмо password reset доступно в Mailpit UI по адресу <http://localhost:8025>; ссылка открывает SPA путь `/reset-password/{token}` и передаёт email query parameter. Настройки лимитов можно изменить в `.env`: `REGISTRATION_RATE_LIMIT[_DECAY]`, `LOGIN_RATE_LIMIT[_DECAY]`, `PASSWORD_RECOVERY_RATE_LIMIT[_DECAY]` и `COMMENT_RATE_LIMIT[_DECAY]`. reCAPTCHA v2 credentials задаются через `NOCAPTCHA_SITEKEY` и `NOCAPTCHA_SECRET`; валидационное правило `captcha` предназначено для будущих comment publication endpoints, оно не включено в account формы.
 
-SPA account pages: `/register`, `/login`, `/forgot-password`, `/reset-password/{token}` и защищённый `/profile`. Состояние авторизации при открытии приложения или обновлении страницы восстанавливается запросом `/api/v1/me`; переход на `/profile` без сессии ведёт на вход. Для проверки password reset откройте присланное письмо в Mailpit и завершите сценарий на SPA странице.
+SPA account pages: `/register`, `/login`, `/forgot-password`, `/reset-password/{token}` и защищённый `/profile`. Состояние авторизации при открытии приложения или обновлении страницы восстанавливается запросом `/api/v1/me`; переход на `/profile` без сессии ведёт на вход. `/forgot-password` доступна только после выхода из аккаунта: авторизованный пользователь перенаправляется на главную страницу. Чтобы запросить письмо для сброса пароля, выйдите из аккаунта и откройте эту страницу через ссылку «Забыли пароль?» на странице входа. В профиле отдельного поля смены пароля нет; восстановление пароля — отдельный email-flow. Для локального теста откройте присланное письмо в Mailpit и завершите сценарий на SPA странице.
 
 API описание обновляется Scramble и доступно по адресу <http://localhost:8080/docs/api>.
 
@@ -94,7 +94,7 @@ API описание обновляется Scramble и доступно по а
 
 Guest указывает имя и e-mail при публикации. Авторизованный пользователь публикует от имени своего профиля; эти поля доступны для просмотра, но не редактируются в форме комментария. Для root comment и reply обе формы требуют Google reCAPTCHA v2. Локальные CAPTCHA keys задаются через `NOCAPTCHA_SITEKEY` и `NOCAPTCHA_SECRET`; frontend site key автоматически берётся из `VITE_NOCAPTCHA_SITEKEY` в `.env.example`.
 
-Редактор ограничен форматированием Italic, Bold, Code и Link. Предпросмотр получает sanitized HTML с backend, а выбранные файлы остаются в браузере до публикации. До трёх JPG/JPEG/PNG/GIF/TXT можно добавлять, удалять и заменять; изображения показываются в image viewer, TXT скачиваются. Лимит изображений задаётся `MEDIA_IMAGE_MAX_MB` и передаётся frontend через `VITE_MEDIA_IMAGE_MAX_MB`. После `comment.created` SPA обновляет текущий список через debounced REST-запрос.
+Редактор ограничен форматированием Italic, Bold, Code и Link. Предпросмотр получает sanitized HTML с backend, а выбранные файлы остаются в браузере до публикации. До трёх JPG/JPEG/PNG/GIF/TXT можно добавлять, удалять и заменять; изображения открываются в image viewer и скачиваются как originals, TXT скачиваются с безопасным `Content-Disposition`. Лимит изображений задаётся `MEDIA_IMAGE_MAX_MB` и передаётся frontend через `VITE_MEDIA_IMAGE_MAX_MB`. После `comment.created` SPA обновляет текущий список через debounced REST-запрос.
 
 `GET /api/v1/comments` returns 25 root comments per page with their complete nested reply trees. Root comments can be sorted by `date`, `name`, or `email` using `sort_by`, with `direction=asc|desc`; the default is `date` descending. Replies remain chronological. The response resolves registered authors from the current profile and represents deleted ancestors as content-free tombstones only when they contain visible descendants.
 
@@ -176,7 +176,7 @@ Production build использует multi-stage `Dockerfile`: Node собир�
 
 Для каждого релиза соберите image с новым `IMAGE_TAG`, запустите migration service один раз, затем обновите app/web/worker/Reverb сервисы. До обновлений делайте и проверяйте резервные копии MySQL и media volume. Не выполняйте `docker compose down -v` в production: эта команда удалит persistent data. Письма отправляются через SMTP provider; Mailpit предназначен только для local development.
 
-**Текущий production deployment (2026-10-23):** QA сайт доступен по адресу [[QA endpoint omitted]]([QA endpoint omitted]). На Ubuntu 24.04/VPS запущен описанный production Compose stack; публичный TLS завершается на host-level Caddy, Docker web доступен только на `127.0.0.1:8080`, firewall открыт для SSH/HTTP/HTTPS. `/`, `/up` и comments API возвращают HTTP 200 с проверкой TLS; HTTP перенаправляется на HTTPS, WebSocket handshake возвращает 101. Это временный QA deployment на IP-based `sslip.io` hostname, не production SLA/backup guarantee. Реальный CAPTCHA challenge и отправка письма не проверялись end-to-end; SMTP-подключение проверено на уровне TCP.
+**QA deployment (2026-10-23):** Production Compose topology проверена на cloud VPS под Ubuntu 24.04. HTTPS app, health и API smoke checks прошли; HTTP перенаправляется на HTTPS, WebSocket handshake возвращает 101. Реальный reCAPTCHA challenge принят backend, помеченный QA-комментарий сохранён, а письмо сброса пароля доставлено в mailbox владельца. Это временное QA-окружение без production SLA или гарантии резервного восстановления.
 
 ## Database diagram
 

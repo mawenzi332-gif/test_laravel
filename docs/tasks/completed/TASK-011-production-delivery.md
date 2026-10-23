@@ -2,7 +2,7 @@
 
 ## Status
 
-REVIEW
+COMPLETED
 
 ## Goal
 
@@ -88,6 +88,7 @@ REVIEW
 - `routes/channels.php` загружается при bootstrap. Вызов `Broadcast::channel()` делегируется default broadcaster через `BroadcastManager`, поэтому прежний default `reverb` пытался создать Pusher до публикации событий. Безопасный fallback теперь `null`, а production env template явно выбирает `reverb`.
 - Docker build больше не задаёт фиктивные Reverb credentials для package discovery; discovery запускается с `BROADCAST_CONNECTION=null`.
 - Production deployment доступен по `[QA endpoint omitted]` на VPS Ubuntu 24.04. Caddy автоматически завершает HTTPS и проксирует к Docker web на loopback `127.0.0.1:8080`; UFW разрешает SSH/HTTP/HTTPS. Compose `config --quiet` и миграции прошли на VPS.
+- Provider текущего VPS установлен как cloud provider (cloud provider); README и scaling/acceptance report фиксируют провайдера, hosting model и topology согласно SOW.
 - Runtime storage paths, включая Laravel views/cache/sessions и Media Library temp, создаются в образе до смены владельца. Именованный `app_storage` volume смонтирован в `/var/www/html/storage`; MySQL, Redis и RabbitMQ используют отдельные named volumes.
 - Nginx разрешает Docker DNS имя Reverb динамически для `/app/`, чтобы переподнятый Reverb container не оставлял upstream на старом IP.
 - Queue worker и Reverb запущены как `www-data`; после смены Compose user обе команды проверены в запущенных контейнерах с UID `www-data`.
@@ -96,7 +97,7 @@ REVIEW
 ## Findings / Risks
 
 - Публичный QA deployment работает на IP-based `sslip.io` hostname. Это временный адрес, зависящий от публичного IPv4 VPS; custom domain, backup/restore drill и uptime guarantee не входят в выполненную проверку.
-- Hosted GitHub Actions result появится только после push; local workflow commands уже проверялись в TASK-010.
+- Предоставленный hosted run TASK-010 `120455227776` относится к revision до broadcaster fix. В этой среде не удалось получить статус hosted run для `db2c939`; local equivalent checks прошли, но remote green не утверждается.
 - Целевые 1,000,000 comments / 100,000 users/day не подтверждены нагрузочным тестом; предусмотрен evidence-driven scaling path, capacity claim не делается.
 - Внешний SMTP host/port доступен с app container по TCP, но письмо не отправлялось; reCAPTCHA credentials установлены, но реальный пользовательский challenge и publication flow не проверялись end-to-end.
 - Queue worker работает как отдельный процесс `php artisan queue:work rabbitmq --queue=broadcasts,mail`; повторная проверка зафиксировала успешную обработку `App\Jobs\BroadcastCommentCreated`. Для worker нет отдельного Docker healthcheck.
@@ -142,12 +143,18 @@ REVIEW
 - Обнаружено, что worker и Reverb выполнялись от root. В `compose.production.yaml` задан пользователь `www-data`; контейнеры пересозданы, оба процесса проверены под UID `www-data`, WebSocket smoke после изменения вернул 101.
 - README дополнен прямым пояснением метода performance analysis: focused query-count test и MySQL EXPLAIN; Debugbar и load test не применялись. Scaling report обновлён по фактическому VPS deployment.
 
+### Review iteration 6 — 2026-10-23
+
+- По уточнению владельца Architecture обновлена: текущим provider указан cloud provider (cloud provider); OCI удалена из роли предпочтительного reference deployment. SOW допускает любого подходящего cloud provider и остаётся источником cost-efficiency guidance.
+
 ## Completion summary
 
 Добавлен production multi-stage Dockerfile и production Compose topology без Vite dev server; PHP-FPM, Nginx, MySQL, Redis, RabbitMQ, Reverb и worker развернуты на VPS. Созданы MySQL Workbench-importable SQL и Mermaid diagrams, scaling/acceptance report, production env template; README описывает deployment, DB diagram и limitations. Local quality suite — 56 tests / 349 assertions, Pint — 77 files, Vite production build, Compose config, migrations и schema metadata comparison прошли. Production миграции и повторные публичные проверки `/`, `/up`, comments API, cookie flags и WebSocket handshake прошли; CAPTCHA end-to-end и реальная SMTP отправка не выполнялись. Worker и Reverb работают как `www-data`. Capacity на целевых объёмах не измерялась; performance evidence ограничен query-count test и EXPLAIN на небольшой базе. Approved SOW/Architecture/DB не менялись.
 
 Review iteration 1: исправлено разрешение default broadcaster при bootstrap. Без явной настройки Laravel теперь использует `null`, package discovery не создаёт Pusher; production env template явно включает Reverb, а Docker build не использует фиктивные credentials. Проверки `composer install`/`package:discover` с пустыми Reverb variables, Reverb route bootstrap и production image build прошли.
 
-## Proposed commit
+## Original implementation commit
 
 `chore(TASK-011): prepare production delivery and final documentation`
+
+По просьбе владельца незакоммиченные TASK-011 архивные записи и новый `versions.md` включаются в тот же follow-up commit, что и TASK-012/TASK-013. Отдельный TASK-014 не создаётся.

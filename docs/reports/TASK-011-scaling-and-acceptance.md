@@ -31,12 +31,12 @@ The completed TASK-003–010 specifications and regression tests provide evidenc
 | Requirement | Evidence / status |
 |---|---|
 | Functional API/SPA, auth, comments, tree, sorting, attachments | Completed task specs TASK-003–009 and current backend test suite; browser walkthrough evidence is in TASK-009. |
-| Performance/security/OpenAPI/CI | `docs/reports/TASK-010-quality-report.md`; local checks passed, hosted CI run awaits push. |
+| Performance/security/OpenAPI/CI | `docs/reports/TASK-010-quality-report.md`; local checks pass. The provided TASK-010 run [120455227776](https://github.com/mawenzi332-gif/test_laravel/actions/runs/120455227776) predates the TASK-011 broadcaster fix; status of a hosted run for `db2c939` was not verifiable during this audit. |
 | Production build and deployment procedure | Production images built; separate Compose stack started; `/`, `/up` and `/api/v1/comments` returned HTTP 200. PHP image contains compiled Vite manifest, has no `public/hot`, and has no Node executable. |
-| Public test deployment | VPS deployment is live at `[QA endpoint omitted]`; HTTPS app/health/API and Reverb WebSocket smoke checks pass. It is a temporary IP-based QA hostname, not an availability guarantee. |
+| Public test deployment | cloud provider (cloud provider) cloud VPS running Ubuntu 24.04; deployment is live at `[QA endpoint omitted]`. HTTPS app/health/API and Reverb WebSocket smoke checks pass. It is a temporary IP-based QA hostname, not an availability guarantee. |
 | Database diagram | Workbench-importable SQL was imported into a disposable MySQL 8.4 schema. Column metadata, indexes, foreign keys and CHECK constraints matched the schema created by Laravel migrations. |
 | Capacity target evidence | **Open evidence gap:** targets are documented as planning objectives; no production-scale load test was run. |
-| Final repository status/history | REVIEW worktree contains only planned TASK-011 edits/artifacts; last 20 commit subjects contain `TASK-XXX`; `git diff --check` passed. No `.env.production`, generated image assets, or build outputs are included in the repository diff. |
+| Final repository status/history | TASK-011 acceptance audit recorded its scoped worktree and clean diff check; the current audit has also closed TASK-012. No real `.env`/`.env.production` files are tracked; only example templates are versioned. |
 
 ## TASK-011 production smoke checks
 

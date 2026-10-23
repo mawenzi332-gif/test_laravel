@@ -14,7 +14,7 @@
                     <select v-model="direction" class="form-select form-select-sm" aria-label="Направление сортировки" @change="changeSort">
                         <option value="desc">По убыванию</option><option value="asc">По возрастанию</option>
                     </select>
-                    <span v-if="meta.total" class="small text-body-secondary ms-md-auto">{{ meta.total }} комментариев · страница {{ meta.current_page }} из {{ meta.last_page }}</span>
+                    <span class="small text-body-secondary ms-md-auto">Комментариев: {{ meta.total }} · страница {{ meta.current_page }} из {{ meta.last_page }}</span>
                 </div>
             </div>
         </div>

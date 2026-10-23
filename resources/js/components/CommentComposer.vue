@@ -1,5 +1,5 @@
 <template>
-    <form class="comment-composer card card-body" @submit.prevent="submit">
+    <form class="comment-composer card card-body" novalidate @submit.prevent="submit">
         <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
             <div>
                 <h3 class="h5 mb-1">{{ heading }}</h3>
@@ -28,10 +28,10 @@
             <div v-if="mode === 'edit' && savedAttachments.length" class="mb-3">
                 <div class="form-label">Опубликованные вложения</div>
                 <div class="saved-attachment-list">
-                    <div v-for="file in savedAttachments" :key="file.id" class="saved-attachment-row">
+                    <div v-for="(file, index) in savedAttachments" :key="file.id" class="saved-attachment-row">
                         <img v-if="file.preview_url" :src="file.preview_url" :alt="file.name" class="draft-thumb">
                         <span v-else class="draft-file-icon" aria-hidden="true">TXT</span>
-                        <span class="text-truncate flex-grow-1">{{ file.file_name ?? file.name }}</span>
+                        <span class="text-truncate flex-grow-1">{{ savedAttachmentNames[index] }}</span>
                         <a v-if="file.mime_type === 'text/plain'" class="btn btn-sm btn-outline-secondary" :href="file.url" target="_blank" rel="noopener">Скачать</a>
                         <button type="button" class="btn btn-sm" :class="keptIds.includes(file.id) ? 'btn-outline-danger' : 'btn-outline-success'" @click="toggleKeep(file.id)">{{ keptIds.includes(file.id) ? 'Убрать' : 'Оставить' }}</button>
                     </div>
@@ -51,13 +51,16 @@
             <div class="d-flex justify-content-between align-items-center mb-2"><h4 class="h6 mb-0">Предварительный просмотр</h4><button type="button" class="btn-close" aria-label="Закрыть предпросмотр" @click="previewOpen = false"></button></div>
             <div v-if="previewHtml" class="comment-body" v-html="previewHtml"></div>
             <p v-else class="small text-body-secondary">Добавьте текст, чтобы увидеть предварительный просмотр.</p>
+            <p v-if="previewStale" class="small text-warning-emphasis mb-0">Содержимое изменилось. Нажмите «Обновить просмотр», чтобы увидеть актуальную версию.</p>
+            <p v-if="previewError" class="small text-danger" role="alert">{{ previewError }}</p>
+            <p v-if="previewing" class="small text-body-secondary" role="status">Обновляем предварительный просмотр…</p>
             <AttachmentDisplay :attachments="previewAttachments" :draft-files="files" @image="openDraftImage" />
         </div>
 
         <div v-if="formError" class="alert alert-danger py-2" role="alert">{{ formError }}</div>
         <div class="d-flex flex-wrap justify-content-end gap-2">
             <button type="button" class="btn btn-outline-secondary" :disabled="busy || previewing" @click="togglePreview">{{ previewing ? 'Готовим…' : previewOpen ? 'Обновить просмотр' : 'Предпросмотр' }}</button>
-            <button type="submit" class="btn btn-primary" :disabled="busy || !hasText || (mode === 'create' && !captchaToken)">{{ busy ? 'Сохраняем…' : submitLabel }}</button>
+            <button type="submit" class="btn btn-primary" :disabled="busy">{{ busy ? 'Сохраняем…' : submitLabel }}</button>
         </div>
     </form>
     <ImageViewer v-if="draftImage" :src="draftImage.src" :alt="draftImage.alt" @close="draftImage = null" />
@@ -67,6 +70,8 @@
 import { computed, ref, watch } from 'vue';
 import { apiErrorMessage, apiFieldErrors } from '../api/client.js';
 import { createComment, previewComment, updateComment } from '../api/comments.js';
+import { notify } from '../feedback.js';
+import { duplicateDisplayNames } from '../utils/attachmentNames.js';
 import { useAuthStore } from '../stores/auth.js';
 import AttachmentDisplay from './AttachmentDisplay.vue';
 import AttachmentPicker from './AttachmentPicker.vue';
@@ -88,6 +93,8 @@ const busy = ref(false);
 const previewing = ref(false);
 const previewOpen = ref(false);
 const previewHtml = ref('');
+const previewError = ref('');
+const previewStale = ref(false);
 const formError = ref('');
 const fieldErrors = ref({});
 const draftImage = ref(null);
@@ -100,25 +107,58 @@ const hasText = computed(() => new DOMParser().parseFromString(text.value, 'text
 const canChangeAttachments = computed(() => props.mode === 'edit');
 const heading = computed(() => props.mode === 'edit' ? 'Редактировать комментарий' : props.parentId ? 'Ответить' : 'Добавить комментарий');
 const submitLabel = computed(() => props.mode === 'edit' ? 'Сохранить изменения' : 'Опубликовать');
-const previewAttachments = computed(() => savedAttachments.value);
+const previewAttachments = computed(() => savedAttachments.value.map((file, index, all) => ({ ...file, file_name: duplicateDisplayNames(all, (item) => item.file_name ?? item.name)[index] })));
+const savedAttachmentNames = computed(() => duplicateDisplayNames(savedAttachments.value, (file) => file.file_name ?? file.name));
 
 function fieldError(field) { const value = fieldErrors.value?.[field]; return Array.isArray(value) ? value[0] : value; }
 function toggleKeep(id) { keptIds.value = keptIds.value.includes(id) ? keptIds.value.filter((value) => value !== id) : [...keptIds.value, id]; }
 function openDraftImage(file) { draftImage.value = { src: file.preview_url ?? file.url, alt: file.name }; }
 
 async function togglePreview() {
-    if (!hasText.value) { previewOpen.value = true; previewHtml.value = ''; return; }
+    if (!hasText.value) {
+        previewOpen.value = true;
+        previewHtml.value = '';
+        previewError.value = 'Добавьте текст комментария, чтобы сформировать предпросмотр.';
+        notify('Для предпросмотра сначала добавьте текст комментария.', 'warning');
+        return;
+    }
     previewing.value = true;
-    formError.value = '';
-    try { previewHtml.value = await previewComment(text.value); previewOpen.value = true; }
-    catch (error) { formError.value = apiErrorMessage(error); }
+    previewOpen.value = true;
+    previewError.value = '';
+    try {
+        const html = await previewComment(text.value);
+        previewHtml.value = html;
+        previewStale.value = false;
+    } catch (error) {
+        previewError.value = apiErrorMessage(error);
+        notify(`Не удалось обновить предпросмотр. ${previewError.value}`);
+    }
     finally { previewing.value = false; }
 }
 
 async function submit() {
-    busy.value = true;
     formError.value = '';
     fieldErrors.value = {};
+    const localErrors = {};
+    if (!hasText.value) localErrors.text = ['Введите текст комментария.'];
+    if (props.mode === 'create' && !auth.authenticated) {
+        if (!guest.value.name) localErrors.guest_name = ['Укажите имя.'];
+        else if (guest.value.name.length > 255) localErrors.guest_name = ['Имя не должно превышать 255 символов.'];
+        if (!guest.value.email) localErrors.guest_email = ['Укажите e-mail.'];
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guest.value.email)) localErrors.guest_email = ['Введите корректный e-mail.'];
+        else if (guest.value.email.length > 255) localErrors.guest_email = ['E-mail не должен превышать 255 символов.'];
+        if (guest.value.homePage && !/^https?:\/\//i.test(guest.value.homePage)) localErrors.guest_home_page = ['Адрес должен начинаться с http:// или https://.'];
+        else if (guest.value.homePage.length > 2048) localErrors.guest_home_page = ['Адрес не должен превышать 2048 символов.'];
+    }
+    if (props.mode === 'create' && !captchaToken.value) localErrors['g-recaptcha-response'] = ['Подтвердите проверку CAPTCHA.'];
+    if (Object.keys(localErrors).length) {
+        fieldErrors.value = localErrors;
+        formError.value = 'Проверьте поля, отмеченные ниже.';
+        notify(formError.value, 'warning');
+        return;
+    }
+
+    busy.value = true;
     const payload = { text: text.value };
     if (props.mode === 'create') {
         if (!auth.authenticated) Object.assign(payload, { guest_name: guest.value.name, guest_email: guest.value.email, guest_home_page: guest.value.homePage || undefined });
@@ -132,10 +172,12 @@ async function submit() {
 
     try {
         const saved = props.mode === 'edit' ? await updateComment(props.comment.id, payload) : await createComment(payload);
+        notify(props.mode === 'edit' ? 'Изменения сохранены.' : 'Комментарий опубликован.', 'success');
         emit('saved', saved);
     } catch (error) {
         fieldErrors.value = apiFieldErrors(error);
         formError.value = error?.response?.status === 422 ? 'Проверьте отмеченные поля и CAPTCHA.' : apiErrorMessage(error);
+        notify(formError.value);
         if (fieldErrors.value['g-recaptcha-response']) captcha.value?.reset();
     } finally { busy.value = false; }
 }
@@ -145,4 +187,12 @@ watch(() => props.comment, (comment) => {
     keptIds.value = comment?.attachments?.map((file) => file.id) ?? [];
     files.value = [];
 });
+
+watch([text, files, savedAttachments], () => {
+    if (previewOpen.value) previewStale.value = true;
+}, { deep: true });
+watch(text, () => { delete fieldErrors.value.text; });
+watch(() => guest.value.name, () => { delete fieldErrors.value.guest_name; });
+watch(() => guest.value.email, () => { delete fieldErrors.value.guest_email; });
+watch(() => guest.value.homePage, () => { delete fieldErrors.value.guest_home_page; });
 </script>

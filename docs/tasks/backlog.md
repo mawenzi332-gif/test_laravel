@@ -666,7 +666,7 @@ TASK-003–009.
 
 ---
 
-## [?] TASK-011 — Production delivery, deployment, documentation and final acceptance
+## [x] TASK-011 — Production delivery, deployment, documentation and final acceptance
 
 **Legacy mapping:** old TASK-038–TASK-044.
 
@@ -766,6 +766,76 @@ TASK-010 и фактически завершённое приложение.
 
 ---
 
+## [x] TASK-012 — Comments UX polish and validation feedback
+
+### Goal
+
+Исправить выявленные UX-дефекты comments flow, улучшить обратную связь при ошибках и результатах действий, визуальную иерархию и отображение backend validation errors во frontend.
+
+### Scope
+
+- Исправить обновление preview после повторного нажатия.
+- Привести счётчик комментариев к нейтральной подписи без ошибок склонения.
+- Сделать обозначение root/reply уровней последовательным.
+- Объяснять недопустимые комбинации code с link/bold/italic и корректно снимать существующую ссылку.
+- Устранить неоднозначное оформление имени TXT-вложения и ссылки скачивания.
+- Добавить согласованное скачивание original для JPG/JPEG/PNG/GIF рядом с просмотром изображения.
+- Определить и реализовать поведение при повторном добавлении одинакового файла после ответа владельца.
+- Провести UX-аудит comments flow и дать ясную контекстную обратную связь для обнаруженных edge cases.
+- Улучшить визуальную иерархию, читабельность и responsive UX comments UI.
+- Проверить client-side validation как UX layer и отображение server-side validation errors, не ослабляя backend validation.
+
+### Acceptance criteria
+
+- Preview обновляется и показывает актуальный текст/вложения; пустой текст и сбой preview имеют понятное объяснение.
+- Счётчик использует нейтральную форму; root comments и replies имеют непротиворечивые подписи уровней.
+- Link toolbar снимает активную ссылку предсказуемо; ограничения сочетания link/code и code с bold/italic объясняются пользователю.
+- Для TXT-вложения именем и интерактивной ссылкой остаётся только элемент скачивания.
+- Все поддерживаемые изображения открываются в viewer и имеют явное действие скачивания original; просмотр остаётся доступен отдельно.
+- Повторный файл обрабатывается в соответствии с решением владельца; пользователь понимает результат.
+- Отказы действий, локальная и серверная валидация и другие обнаруженные edge cases дают контекстную, доступную обратную связь.
+- Comments UI получает улучшенную визуальную иерархию и usable responsive baseline без изменения product/API/DB semantics.
+- Заведомо некорректный ввод проверен в browser; ошибки показаны на клиенте, ввод сохранён, backend остаётся источником окончательной проверки.
+- Добавлена focused automated/browser verification по доступной стратегии; обновлены traceability и implementation log.
+
+### Dependencies
+
+TASK-006, TASK-009.
+
+---
+
+## [x] TASK-013 — Production integrations and public deployment info
+
+### Goal
+
+Проверить реальные production CAPTCHA и SMTP flows end-to-end и убрать адрес QA deployment из публичного README.
+
+### Scope
+
+- Убрать точный IP/hostname и адрес QA deployment из README и сопровождающих implementation/acceptance записей, сохранив общие инструкции и QA status.
+- Проверить реальный reCAPTCHA v2 challenge и успешную публикацию тестового QA-комментария без обхода CAPTCHA.
+- Проверить отправку и получение одного реального SMTP письма на подтверждённый владельцем адрес.
+- Зафиксировать evidence и ограничения без записи credentials или CAPTCHA tokens.
+- Удалить личный author email из Git history с сохранением GitHub attribution после локальной проверки переписанной истории.
+
+**Commit grouping:** владелец одобрил один user-created commit для накопленных изменений TASK-011 closeout, TASK-012 и TASK-013, включая `versions.md`. Статусы и acceptance criteria задач остаются отдельными. Общий subject указан в task-spec и implementation log.
+
+### Non-goals
+
+- Ротация production secrets.
+- Публикация новых QA данных или отправка писем третьим лицам без согласованного адреса и тестового сценария.
+
+### Acceptance criteria
+
+- README и non-normative implementation/acceptance docs не содержат точный QA IP/hostname/URL.
+- Реальный пользовательский reCAPTCHA challenge принят backend, и один помеченный QA-комментарий опубликован.
+- Одно реальное SMTP письмо доставлено в подтверждённый владельцем mailbox.
+- GitHub-reachable commits не содержат личного author/committer email; новые commits используют GitHub noreply.
+- Secrets/tokens не попали в вывод команд, документацию или Git.
+- Проверки и нерешённые ограничения внесены в task file и implementation log.
+
+---
+
 # Recommended execution order
 
 ```text
@@ -784,6 +854,7 @@ TASK-005/006/007/008 ──→ TASK-009  Comments SPA
 
 TASK-003–009 ──────────→ TASK-010  Quality/performance/CI
 TASK-010 ──────────────→ TASK-011  Production/delivery/final acceptance
+TASK-009 + TASK-011 ──→ TASK-012  Comments UX/validation follow-up
 ```
 
 # Deadline-mode guidance

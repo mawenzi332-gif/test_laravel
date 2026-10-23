@@ -7,7 +7,7 @@
             <div v-for="item in items" :key="item.key" class="draft-attachment">
                 <img v-if="item.previewUrl && item.isImage" :src="item.previewUrl" :alt="item.name" class="draft-thumb">
                 <span v-else class="draft-file-icon" aria-hidden="true">TXT</span>
-                <span class="text-truncate flex-grow-1">{{ item.name }} <small class="text-body-secondary">{{ formatSize(item.size) }}</small></span>
+                <span class="text-truncate flex-grow-1">{{ item.displayName }} <small class="text-body-secondary">{{ formatSize(item.size) }}</small></span>
                 <button type="button" class="btn btn-sm btn-outline-secondary" :disabled="disabled" @click="replace(item.key)">Заменить</button>
                 <button type="button" class="btn btn-sm btn-outline-danger" :disabled="disabled" :aria-label="`Удалить ${item.name}`" @click="remove(item.key)">Удалить</button>
                 <input :ref="(element) => setReplaceInput(item.key, element)" class="visually-hidden" type="file" accept=".jpg,.jpeg,.png,.gif,.txt,image/jpeg,image/png,image/gif,text/plain" @change="(event) => onReplace(event, item.key)">
@@ -19,12 +19,17 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { duplicateDisplayNames } from '../utils/attachmentNames.js';
+import { notify } from '../feedback.js';
 
 const props = defineProps({ modelValue: { type: Array, default: () => [] }, disabled: Boolean, imageLimit: { type: Number, default: Number(import.meta.env.VITE_MEDIA_IMAGE_MAX_MB ?? 10) }, maxAttachments: { type: Number, default: 3 }, inputId: { type: String, default: 'comment-attachments' } });
 const emit = defineEmits(['update:modelValue']);
 const errors = ref([]);
 const replaceInputs = new Map();
-const items = computed(() => props.modelValue.map((file) => ({ key: file._draftKey, file, name: file.name, size: file.size, isImage: file.type.startsWith('image/'), previewUrl: file._previewUrl })));
+const items = computed(() => {
+    const displayNames = duplicateDisplayNames(props.modelValue);
+    return props.modelValue.map((file, index) => ({ key: file._draftKey, file, name: file.name, displayName: displayNames[index], size: file.size, isImage: file.type.startsWith('image/'), previewUrl: file._previewUrl }));
+});
 const totalCount = computed(() => items.value.length);
 
 function setReplaceInput(key, element) { if (element) replaceInputs.set(key, element); else replaceInputs.delete(key); }
@@ -60,12 +65,13 @@ function addFiles(files) {
         if (issue) errors.value.push(issue);
         else accepted.push(normalize(file));
     });
+    if (errors.value.length) notify(errors.value.join(' '));
     emit('update:modelValue', accepted);
 }
 
 function replaceFile(key, file) {
     const issue = validate(file, 1);
-    if (issue) { errors.value = [issue]; return; }
+    if (issue) { errors.value = [issue]; notify(issue); return; }
     errors.value = [];
     const next = props.modelValue.map((current) => current._draftKey === key ? normalize(file) : current);
     emit('update:modelValue', next);

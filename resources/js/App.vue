@@ -19,6 +19,7 @@
             </nav>
             <div v-if="logoutError" class="container pb-2 small text-danger" role="alert">{{ logoutError }}</div>
         </header>
+        <FeedbackToast />
         <router-view />
     </div>
 </template>
@@ -27,6 +28,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from './stores/auth.js';
+import FeedbackToast from './components/FeedbackToast.vue';
 
 const auth = useAuthStore();
 const router = useRouter();

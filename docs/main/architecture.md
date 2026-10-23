@@ -1197,6 +1197,8 @@ GET /api/v1/attachments/{attachment}/preview
 AttachmentController
 ```
 
+Оригиналы поддерживаемых изображений JPG/JPEG/PNG/GIF используются в image viewer и доступны для скачивания из SPA. Отдельный download endpoint не требуется: same-origin ссылка на original использует HTML `download` attribute. Image preview остаётся отдельным thumbnail/read URL.
+
 ---
 
 # 40. File storage
@@ -1359,6 +1361,8 @@ Content-Type: text/plain; charset=UTF-8
 Content-Disposition: attachment
 X-Content-Type-Options: nosniff
 ```
+
+Image originals отдаются для inline viewer через существующий read endpoint; SPA дополнительно предоставляет отдельное download действие на тот же original URL. Специальный backend download route для изображений не добавляется.
 
 ---
 
@@ -2023,26 +2027,9 @@ Vite development server в production отсутствует.
 
 # 71. Cloud deployment
 
-Reference low-cost deployment:
+Текущий QA deployment размещён на OVHcloud (OVH SAS): Linux VPS под Ubuntu 24.04.
 
-```text
-Oracle Cloud Infrastructure
-Always Free Compute
-```
-
-OCI по состоянию на 2026 год продолжает документировать Always Free VM resources; Ampere A1 allowance эквивалентен до 2 OCPU и 12 GB RAM для Always Free tenancy, хотя Oracle отдельно предупреждает о возможном отсутствии capacity.
-
-Поэтому:
-
-```text
-Preferred:
-OCI Always Free VM
-
-Fallback:
-любой недорогой Linux VPS/VM
-```
-
-Core application к OCI не привязан.
+OVHcloud — выбранный deployment provider для текущего окружения, а не зависимость core application. Для будущих окружений допускается любой подходящий cloud provider; при выборе следует учитывать SHOULD из SOW по стоимости.
 
 ---
 
@@ -2509,7 +2496,7 @@ optional CDN
 
 **A-046.** Docker — reproducible local/prod environment.
 
-**A-047.** Reference cloud — OCI Always Free VM where available.
+**A-047.** Current QA cloud deployment — OVHcloud (OVH SAS) Linux VPS, Ubuntu 24.04.
 
 **A-048.** Cloud provider не попадает в core business logic.
 

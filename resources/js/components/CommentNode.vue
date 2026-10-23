@@ -8,7 +8,7 @@
                     <strong v-else class="comment-author">{{ comment.author?.name }}</strong>
                     <span class="comment-meta">{{ comment.author?.email }} · {{ formatDate(comment.created_at) }}<span v-if="comment.edited_at" class="edited-label"> · отредактирован</span></span>
                 </div>
-                <span v-if="level > 0" class="hierarchy-label">{{ levelLabel }}</span>
+                <span class="hierarchy-label">{{ levelLabel }}</span>
             </header>
             <div class="comment-body" v-html="comment.body_html"></div>
             <AttachmentDisplay :attachments="comment.attachments ?? []" @image="showImage" />
@@ -32,6 +32,7 @@
 import { defineAsyncComponent, ref } from 'vue';
 import { deleteComment } from '../api/comments.js';
 import { apiErrorMessage } from '../api/client.js';
+import { notify } from '../feedback.js';
 import AttachmentDisplay from './AttachmentDisplay.vue';
 import ImageViewer from './ImageViewer.vue';
 
@@ -43,7 +44,7 @@ const replying = ref(false);
 const editing = ref(false);
 const deleting = ref(false);
 const image = ref(null);
-const levelLabel = `Уровень ${props.level + 1}`;
+const levelLabel = props.level === 0 ? 'Корневой комментарий' : `Ответ · уровень ${props.level}`;
 
 function formatDate(value) { return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
 function showImage(file) { image.value = { src: file.url ?? file.preview_url, alt: file.name }; }
@@ -53,7 +54,7 @@ async function remove() {
     if (!window.confirm('Удалить этот комментарий? Его ответы сохранятся.')) return;
     deleting.value = true;
     try { await deleteComment(props.comment.id); emit('changed'); }
-    catch (error) { window.alert(apiErrorMessage(error)); }
+    catch (error) { notify(apiErrorMessage(error)); }
     finally { deleting.value = false; }
 }
 </script>

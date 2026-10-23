@@ -2,9 +2,148 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-013 — Production integrations and public deployment info
+
+**Статус:** принято
+**Дата:** 2026-10-23
+
+### Что реализовано
+
+- Удалены точные QA IP/hostname/URL из README и non-normative deployment/acceptance записей; общие deployment сведения сохранены.
+- Проведён реальный production reCAPTCHA challenge: владелец решил challenge, backend принял помеченный комментарий `task-013 captcha check`.
+- Проверен password reset email flow: владелец подтвердил получение письма и завершение сброса пароля.
+- Исправлена production `MAIL_SCHEME` с `tls` на `smtp`; безопасный `.env.production.example` приведён к той же настройке, worker пересоздан.
+- Переписана опубликованная Git history: 14 commits используют GitHub noreply author/committer identities; удалённая `main` обновлена с `--force-with-lease`.
+- Адрес Git для будущих commits в этом checkout настроен на GitHub ID-based noreply. Рабочая ветка совпадает с `origin/main`; существующие незакоммиченные изменения сохранены.
+
+### Как это реализовано
+
+Production email диагностирован по серверным runtime-настройкам и queue logs. После смены `MAIL_SCHEME` на `smtp` worker был пересоздан; пользователь инициировал новый сброс пароля, получил письмо и завершил flow. CAPTCHA проверена только через реальный browser challenge, решённый владельцем. История Git переписана в изолированной копии с сохранением GitHub attribution и опубликована lease-protected force push. GitHub API после обновления подтвердил 14 доступных commits без личных author/committer email. Репозиторий остаётся private.
+
+### Основные изменённые области
+
+- `README.md`, `.env.production.example`
+- `docs/reports/TASK-011-scaling-and-acceptance.md`
+- `docs/tasks/backlog.md`, `docs/tasks/active/TASK-013-production-integrations-and-public-info.md`
+- Git metadata: опубликованная `main` и repo-local `user.email`
+
+### Проверки
+
+- Реальный QA comment POST — HTTP 201; QA marker присутствует в последней записи БД.
+- Password reset request/update — HTTP 200; владелец подтвердил получение письма.
+- Production Laravel runtime — `MAIL_SCHEME=smtp`, Brevo relay host/587; после исправления новых failed jobs не зафиксировано.
+- GitHub API audit — 14 reachable commits, 0 non-noreply author/committer identities.
+- `git rev-parse HEAD` и `git rev-parse refs/remotes/origin/main` — совпадают: `d5bd0c638cb6d54053c78f2cdc6a70b1af96f4bd`.
+- `git diff --check -- docs/implementation-log.md docs/tasks/backlog.md` и trailing-whitespace scan task-spec — passed.
+
+### Документация
+
+- README: точные QA locator/provider details удалены; общие deployment notes оставлены.
+- OpenAPI: без изменений.
+- Другое: backlog и task-spec переведены в REVIEW; эта запись добавлена.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет. Утверждённый cloud provider остаётся только в Architecture.
+
+### Известные ограничения / нерешённые вопросы
+
+- Репозиторий остаётся private; решение о публичности не принималось.
+- Одна failed queue job создана до исправления `MAIL_SCHEME`; после исправления новых failed jobs нет, старую job не переотправляли.
+- Временный SSH-ключ оставлен авторизованным по просьбе владельца, чтобы не прерывать доступ во время продолжающейся работы.
+
+### Предлагаемый commit
+
+Владелец одобрил TASK-013 и подтвердил один общий user-created commit для TASK-011 closeout, TASK-012 и TASK-013. Статусы и acceptance criteria задач остаются отдельными.
+
+`feat(TASK-012): consolidate comments UX and production QA updates (TASK-011, TASK-013)`
+
+## TASK-012 — Comments UX polish and validation feedback
+
+**Статус:** принято
+**Дата:** 2026-10-23
+
+### Что реализовано
+
+- Исправлено обновление preview: показываются состояния загрузки, устаревшего текста и ошибки; пустой текст объяснён.
+- Счётчик использует форму «Комментариев: N»; root помечается «Корневой комментарий», replies — «Ответ · уровень N».
+- Активная кнопка ссылки снимает ссылку; ссылка в форматировании code объясняется toast-сообщением.
+- Имя TXT-вложения стало обычным текстом, ссылка «Скачать TXT» — отдельным действием. Повторяющиеся имена отображаются с суффиксами ` (1)`, ` (2)` без изменения исходного файла. Добавлено явное скачивание оригинала JPG/JPEG/PNG/GIF отдельно от открытия image viewer.
+- Добавлен общий toast для результатов действий; client-side guest validation и server 422 показываются пользователю рядом с полями и в сводном сообщении. Введённые данные сохраняются при ответе сервера.
+- Обновлены визуальная иерархия карточек, формы, attachments и mobile layout. Published images/GIF и большой composer preview используют общий responsive frame без crop/upscale.
+
+### Как это реализовано
+
+Vue feedback компонент слушает единое локальное browser event и показывает Bootstrap toast. Comment composer выполняет простую client validation перед запросом, а backend validation остаётся окончательной и её `error.details` выводятся у соответствующих полей. Preview отслеживает изменения текста и вложений и помечает ранее полученный результат как устаревший. Имена вложений нормализуются только для display: одинаковым добавляются порядковые суффиксы до расширения.
+
+### Основные изменённые области
+
+- `resources/js/components/CommentComposer.vue`, `CommentEditor.vue`, `CommentNode.vue`
+- `resources/js/components/AttachmentPicker.vue`, `AttachmentDisplay.vue`, `FeedbackToast.vue`
+- `resources/js/feedback.js`, `resources/js/utils/attachmentNames.js`
+- `resources/js/App.vue`, `resources/js/views/HomeView.vue`, `resources/css/app.css`
+- `docs/tasks/backlog.md`, `docs/tasks/completed/TASK-012-comments-ux-validation.md`
+
+### Проверки
+
+- `docker compose exec -T vite npm run build -- --outDir /tmp/task012-image-frames` — passed, 197 modules.
+- `docker compose exec -T app php artisan test --compact tests/Feature/CommentPublicationLifecycleTest.php` — passed, 11 tests / 91 assertions.
+- Playwright browser walkthrough — preview refresh/empty/failure, file-name suffixes, invalid-file inline+toast feedback, client validation, link removal/code warning, hierarchy labels, TXT download-only link, delete confirmation/error toast, 390 px viewport без горизонтального overflow — passed.
+- Playwright mock 422 — server field errors отобразились, заполненные поля сохранились; реальный invalid POST к `/api/v1/comments` вернул HTTP 422 с field details.
+- Node duplicate filename check и `git -c core.whitespace=cr-at-eol diff --check` — passed.
+- Playwright сравнил image frames в comments list и composer preview: 320×240 px desktop, 273×204.75 px при viewport 390 px; GIF отдельно проверен на скачивание.
+
+### Документация
+
+- README: обновлён — описаны отдельные image downloads и viewer.
+- OpenAPI: не менялся; API contract не изменён.
+- Другое: backlog и task spec обновлены; задача принята владельцем и перенесена в `completed/`.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет.
+
+### Известные ограничения / нерешённые вопросы
+
+- Host-side `npm run build` не смог удалить container-owned asset из `public/build`; production build через Docker в `/tmp` прошёл успешно.
+- Два промежуточных запуска полного backend suite дали разные одиночные сбои в `CommentReadApiTest`; отдельный read suite и последующий полный suite прошли. Сбой не воспроизвёлся.
+
+### Предлагаемый commit
+
+Общий commit для TASK-011 closeout, TASK-012 и TASK-013 указан в записях обеих задач; acceptance criteria и review gates остаются отдельными.
+
+`feat(TASK-012): consolidate comments UX and production QA updates (TASK-011, TASK-013)`
+
+### Review iteration 1 — 2026-10-23
+
+- Удалена лишняя ссылка «Оригинал» у изображения: та же исходная картинка уже открывается в модальном viewer при нажатии на миниатюру.
+- Для несовместимых Code + Bold/Italic добавлены toast-предупреждения в обе стороны. Toolbar сообщает состояние через `aria-pressed`.
+- Playwright проверил предупреждения для обоих конфликтов, снятие кода, отсутствие ссылки «Оригинал» и открытие исходника в viewer; build и CRLF-aware diff check пройдены.
+
+### Review iteration 2 — 2026-10-23
+
+- По согласованному требованию владельца добавлено скачивание оригиналов изображений JPG/JPEG/PNG/GIF. SOW и Architecture фиксируют поведение; README описывает его пользователю. Новые API routes и DB изменения не требуются: image download использует same-origin `download` attribute, viewer остаётся отдельным действием.
+- Playwright подтвердил, что GIF скачивается как `animation.gif`, а thumbnail продолжает открывать original в modal viewer. `docker compose exec -T vite npm run build -- --outDir /tmp/task012-image-download` — passed (197 modules); `git -c core.whitespace=cr-at-eol diff --check` — passed.
+
+### Review iteration 3 — 2026-10-23
+
+- Уточнена формулировка SOW и Architecture: скачивание относится ко всем поддерживаемым графическим форматам, включая GIF.
+- В published comments и большом composer preview установлен общий responsive frame до 320×240 px. Содержимое центрируется, сохраняет aspect ratio, не обрезается и не увеличивается; компактные 48×40 px thumbnails в file picker остались.
+- Playwright подтвердил одинаковый размер рамок в desktop и mobile viewport. Production Vite build и CRLF-aware diff check прошли.
+
+### Review iteration 4 — 2026-10-23
+
+- Текст image download action уточняется по вложению: GIF показывает «Скачать GIF», JPG/JPEG/PNG — «Скачать изображение». Тип определяется по MIME, расширение используется как fallback. Playwright проверил обе подписи; Vite build — 197 modules.
+
+### Review iteration 5 — 2026-10-23
+
+- Финальная проверка: Vite production build — passed; focused lifecycle tests — 11 tests / 91 assertions; полный backend suite — 56 tests / 349 assertions; Pint — 77 files; MySQL constraints — 4 tests / 11 assertions; OpenAPI — 11 paths / 14 operations.
+- Curl-проверки QA deployment: HTTPS `/`, `/up` и comments API — 200 с валидным TLS; пустой `POST /api/v1/comments` — 422 с `CAPTCHA_FAILED` и полевыми validation details.
+- По результату проверки TASK-012 принята владельцем и перенесена в `completed/`.
+
 ## TASK-011 — Production delivery, deployment, documentation and final acceptance
 
-**Статус:** готово к ревью; production сайт доступен по HTTPS для QA
+**Статус:** принято
 **Дата:** 2026-10-23
 
 ### Что реализовано
@@ -15,6 +154,9 @@
 - README получил production setup/deploy, migration/release workflow, секреты, внешние SMTP/CAPTCHA настройки, TLS ingress, backup note, DB diagram import steps, performance summary и scaling path.
 - Созданы MySQL Workbench-importable DDL и Mermaid ER diagram. DDL отражает фактические migrations, включая CHECK/FK/indexes и polymorphic media relation без FK.
 - Добавлен TASK-011 scaling/acceptance report. Он связывает локальные performance evidence с эволюцией backend, MySQL/pagination/trees, Redis, RabbitMQ, Reverb и media storage и перечисляет неподтверждённые capacity gaps.
+- Проверка cloud documentation подтвердила cloud provider (cloud provider) как provider текущего VPS; README и TASK-011 acceptance report теперь явно документируют provider, hosting model и deployment topology.
+- Run GitHub Actions `120455227776` относится к TASK-010 до исправления default broadcaster в TASK-011. Статус hosted run для `db2c939` из текущей среды недоступен; документация больше не утверждает, что результат только ожидает push или что latest hosted CI зелёный.
+- По уточнению владельца в `architecture.md` выбранным текущим cloud provider зафиксирован cloud provider (cloud provider); OCI больше не указана как предпочтительный вариант.
 - Зафиксировано D-001: TLS завершается на внешнем ingress перед Compose web; ingress передаёт HTTPS и WebSocket трафик и ограничивает доступ к backend port.
 
 ### Как это реализовано
@@ -92,7 +234,7 @@
 
 - README: production deployment, setup/env, releases/backups, TLS ingress, live QA URL, DB diagram workflow, performance evidence, scaling, broadcast bootstrap default and known limits.
 - OpenAPI: без изменений.
-- Другое: добавлены Workbench SQL/Mermaid diagrams и TASK-011 acceptance/scaling report; TASK остаётся в `active/` со статусом REVIEW.
+- Другое: добавлены Workbench SQL/Mermaid diagrams и TASK-011 acceptance/scaling report; после принятия task-spec перемещён в `completed/`.
 
 ### Отклонения от SOW / Architecture / DB
 
@@ -107,6 +249,8 @@
 ### Предлагаемый commit
 
 `chore(TASK-011): prepare production delivery and final documentation`
+
+После этого коммита TASK-011 task-spec/backlog lifecycle updates и `versions.md` остались в рабочем дереве. По просьбе владельца эти follow-up документы включаются в общий commit с TASK-012 и TASK-013; отдельная задача на SSH-инструкцию не создаётся.
 
 ## TASK-010 — Quality gate: OpenAPI, observability, security, tests, performance and CI
 
