@@ -666,7 +666,7 @@ TASK-003–009.
 
 ---
 
-## [ ] TASK-011 — Production delivery, deployment, documentation and final acceptance
+## [?] TASK-011 — Production delivery, deployment, documentation and final acceptance
 
 **Legacy mapping:** old TASK-038–TASK-044.
 

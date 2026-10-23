@@ -3,9 +3,16 @@
 .env.*
 !.env.example
 .aws
+.idea
+.phpunit.result.cache
 vendor
 node_modules
 public/build
+public/hot
+bootstrap/cache/*.php
+docs
+tests
+scripts
 storage/logs/*
 storage/framework/cache/data/*
 storage/framework/sessions/*

@@ -2,6 +2,112 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-011 — Production delivery, deployment, documentation and final acceptance
+
+**Статус:** готово к ревью; production сайт доступен по HTTPS для QA
+**Дата:** 2026-10-23
+
+### Что реализовано
+
+- Dockerfile переведён на multi-stage production build: Vite assets, production-only PHP dependencies и отдельные PHP-FPM/Nginx images. `php-development` сохраняет Composer для текущего dev workflow; production runtime не включает Node, Composer CLI или Vite `public/hot` marker.
+- Исправлена загрузка channel routes при Composer package discovery: fallback broadcaster теперь `null`, dev/prod окружения явно выбирают `reverb`, а Docker build выполняет package discovery без фиктивных credentials.
+- Добавлены `compose.production.yaml`, production Nginx config и безопасный `.env.production.example`. Production topology запускает web, PHP-FPM, Reverb, queue worker, MySQL, Redis и RabbitMQ; mailpit/dev Vite отсутствуют.
+- README получил production setup/deploy, migration/release workflow, секреты, внешние SMTP/CAPTCHA настройки, TLS ingress, backup note, DB diagram import steps, performance summary и scaling path.
+- Созданы MySQL Workbench-importable DDL и Mermaid ER diagram. DDL отражает фактические migrations, включая CHECK/FK/indexes и polymorphic media relation без FK.
+- Добавлен TASK-011 scaling/acceptance report. Он связывает локальные performance evidence с эволюцией backend, MySQL/pagination/trees, Redis, RabbitMQ, Reverb и media storage и перечисляет неподтверждённые capacity gaps.
+- Зафиксировано D-001: TLS завершается на внешнем ingress перед Compose web; ingress передаёт HTTPS и WebSocket трафик и ограничивает доступ к backend port.
+
+### Как это реализовано
+
+`frontend-build` stage собирает Vue assets из lockfile; PHP runtime устанавливает системные расширения до Composer, затем собирает optimized autoload/package manifest и удаляет Composer CLI. Nginx image получает public build files из того же Dockerfile, проксирует Laravel в PHP-FPM и `/app/` WebSocket path в Reverb. Production Compose применяет schema отдельным одноразовым `migrate` service; stateful data и private media находятся в named volumes. TLS завершается на внешнем ingress перед Compose web port.
+
+Локальный disposable stack и публичный VPS deployment прошли миграции и smoke checks. Публичный QA URL: `[QA endpoint omitted]`; Caddy обслуживает TLS и проксирует в Compose web, привязанный только к `127.0.0.1:8080`. DDL import был проверен в MySQL 8.4, а metadata columns/indexes/constraints совпали с migrations schema.
+
+### Основные изменённые области
+
+- `Dockerfile`, `.dockerignore`, `.gitignore`, `compose.yaml`, `compose.production.yaml`
+- `config/broadcasting.php`, `.env.production.example`
+- `docker/nginx/production.conf`, `.env.production.example`, `README.md`
+- `docs/diagrams/database-schema.sql`, `docs/diagrams/database-schema.mmd`
+- `docs/reports/TASK-011-scaling-and-acceptance.md`, `docs/decisions.md`
+- `docs/tasks/backlog.md`, `docs/tasks/active/TASK-011-production-delivery.md`
+
+### Проверки
+
+- `PRODUCTION_ENV_FILE=.env.production.example docker compose --env-file .env.production.example -f compose.production.yaml config --quiet` — passed.
+- `PRODUCTION_ENV_FILE=.env.production.example docker compose --env-file .env.production.example -f compose.production.yaml build` — passed: `comments-app:production`, `comments-web:production`.
+- Isolated `docker compose ... --profile operations run --rm migrate` — passed: all four application migrations completed.
+- Disposable production stack — passed: `/`, `/up`, `/api/v1/comments?page=1&sort_by=date&direction=desc` returned HTTP 200; app/MySQL/Redis/RabbitMQ healthy; worker and Reverb running.
+- Production image check — passed: Vite manifest exists; `public/hot`, Node and Composer CLI absent from PHP runtime.
+- `docker compose run --rm --no-deps app composer --version` — passed: dev target сохраняет Composer CLI. Production `app` target check — passed.
+- Workbench DDL import to disposable MySQL 8.4 — passed; columns, indexes and constraints compare identical to migration-created schema.
+- `docker compose exec -T app php artisan test --compact` — passed: 56 tests / 349 assertions.
+- `docker compose exec -T app vendor/bin/pint --test` — passed: 77 files.
+- `docker compose exec -T vite npm run build -- --outDir /tmp/task011-vite-build` — passed: 194 modules.
+- `docker compose --env-file .env.example config --quiet` — passed.
+- `git diff --check` — passed.
+- На VPS: `docker compose ... config --quiet` и все четыре миграции — passed; основные сервисы healthy.
+- Публичные smoke checks: HTTP `/` → 308; HTTPS `/`, `/up`, comments API → 200 с валидным TLS; Sanctum CSRF cookie endpoint → 204 с `Secure`; Reverb WebSocket handshake → 101.
+- Runtime checks: queue worker process запущен на RabbitMQ; app container подключается к MySQL (`SELECT 1`), Redis (`PING`) и SMTP endpoint (TCP). SMTP письмо и reCAPTCHA challenge не выполнялись.
+
+### Review iteration 1 — 2026-10-23
+
+Исправлена ошибка CI `composer install` в `package:discover`: `Broadcast::channel()` разрешал default Reverb connection во время bootstrap, и Pusher завершался на отсутствующем ключе. Неуказанный broadcaster теперь использует Laravel `null` driver; production env template явно задаёт `BROADCAST_CONNECTION=reverb`, сохраняя channel authorization и broadcasts. Build placeholders удалены.
+
+- `docker compose exec ... composer install` с `BROADCAST_CONNECTION=null` и пустыми Reverb variables — passed; Composer выполнил `postAutoloadDump` и `package:discover`.
+- `php artisan package:discover` при пустых Reverb variables — passed.
+- `php artisan route:list --path=broadcasting/auth` с явно выбранным Reverb и временными smoke values — passed.
+- Production `app` image build, включая package discovery без Reverb credentials — passed.
+- `php artisan test --compact` — passed: 56 tests / 349 assertions; Pint — 77 files; Vite build — 194 modules; OpenAPI check — 11 paths / 14 operations.
+
+### Review iteration 2 — 2026-10-23
+
+- При загрузке PNG размером 3353 КБ интерфейс показывал общее сообщение о соединении. В работающем PHP контейнере обнаружены `upload_max_filesize=2M` и `post_max_size=8M`; development Nginx использовал неявный лимит тела запроса 1 MB. Оба ограничения были ниже согласованного лимита изображения 10 MB.
+- Добавлен общий PHP upload config для development/production образов (32 MB транспортный лимит на файл и запрос), development Nginx поднят до 32 MB. Для HTTP 413 добавлено понятное сообщение в SPA; production Nginx уже разрешает 32 MB.
+- Тесты не запускались.
+
+### Review iteration 3 — 2026-10-23
+
+- После увеличения транспортных лимитов запрос дошёл до Laravel и вернул HTTP 500. PNG успел записаться на диск, но комментарий и media record отсутствовали в БД после отката транзакции.
+- Причина — Spatie Media Library строит preview через временную папку `storage/media-library/temp`, которая в текущем Docker volume принадлежала root и была недоступна PHP-FPM (`www-data`). Создание каталога добавлено в Docker build перед назначением владельца `www-data`. Также текущий Laravel log был root-owned, его права исправлены для записи ошибок от FPM.
+- Тесты не запускались.
+
+### Review iteration 4 — 2026-10-23
+
+- Production Compose развернут на предоставленном VPS `[QA IP omitted]`, адрес QA сайта: `[QA endpoint omitted]`. Секретный `.env.production` находится только на VPS.
+- Caddy автоматически получил Let's Encrypt certificate; UFW разрешает SSH/HTTP/HTTPS, а Docker web опубликован только на loopback `127.0.0.1:8080`. Добавлен Nginx resolver для Docker DNS имени Reverb, поскольку после пересоздания контейнера static upstream IP давал WebSocket 502.
+- Все публичные route/transport checks прошли: HTTP redirect 308, HTTPS app/health/API 200, Sanctum cookies Secure, WebSocket Upgrade 101. Persistent volume `comments_app_storage` смонтирован в `/var/www/html/storage`; MySQL/Redis/RabbitMQ имеют отдельные data volumes.
+- VPS при проверке имел около 2.5 GiB available RAM и 29 GiB свободного диска; включён 2 GiB swap, из которого использовалось менее 1 MiB.
+- Полная браузерная публикация с настоящим CAPTCHA и реальная отправка SMTP письма остаются для QA вручную; TCP reachability SMTP подтверждена.
+
+### Review iteration 5 — 2026-10-23
+
+- Повторно проверены публичные HTTPS endpoints и runtime: HTTP redirect 308; `/`, `/up`, comments API 200; Secure/SameSite=Lax cookies; WebSocket 101; app подключается к Redis и MySQL; все семь Compose services работают.
+- Лог worker подтвердил, что `App\Jobs\BroadcastCommentCreated` был получен и завершён со статусом `DONE`.
+- Worker и Reverb изначально выполнялись от root. В Compose для них зафиксирован `user: www-data`; после пересоздания оба процесса подтверждены под UID `www-data`, а WebSocket handshake по-прежнему проходит.
+- README прямо описывает performance method: query-count feature test и MySQL `EXPLAIN`; Laravel Debugbar и production-scale load test не использовались. Scaling report синхронизирован с живым VPS deployment.
+- `PRODUCTION_ENV_FILE=.env.production.example docker compose --env-file .env.production.example -f compose.production.yaml config --quiet` — passed; `git diff --check` — passed.
+
+### Документация
+
+- README: production deployment, setup/env, releases/backups, TLS ingress, live QA URL, DB diagram workflow, performance evidence, scaling, broadcast bootstrap default and known limits.
+- OpenAPI: без изменений.
+- Другое: добавлены Workbench SQL/Mermaid diagrams и TASK-011 acceptance/scaling report; TASK остаётся в `active/` со статусом REVIEW.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет. VPS deployment и внешние HTTPS smoke checks выполнены; отдельный custom domain не настраивался, для временного QA используется `sslip.io` hostname.
+
+### Известные ограничения / нерешённые вопросы
+
+- Нагрузка на 1,000,000 comments / 100,000 users/day не измерялась; известный TASK-010 local EXPLAIN не является capacity benchmark.
+- Реальный CAPTCHA challenge и SMTP отправка не проверялись end-to-end; SMTP TCP connection подтверждён. Hosted GitHub Actions result ожидает push.
+- Доступность сайта зависит от временного IP-based hostname, VPS uptime и свободных ресурсов; backup restore drill не проводился.
+
+### Предлагаемый commit
+
+`chore(TASK-011): prepare production delivery and final documentation`
+
 ## TASK-010 — Quality gate: OpenAPI, observability, security, tests, performance and CI
 
 **Статус:** принято

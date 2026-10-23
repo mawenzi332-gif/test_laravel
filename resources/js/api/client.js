@@ -14,6 +14,10 @@ export async function ensureCsrfCookie() {
 }
 
 export function apiErrorMessage(error) {
+    if (error?.response?.status === 413) {
+        return 'Запрос слишком большой. Уменьшите размер или количество вложений и попробуйте ещё раз.';
+    }
+
     return error?.response?.data?.error?.message
         ?? error?.response?.data?.message
         ?? 'Не удалось выполнить запрос. Проверьте соединение и попробуйте ещё раз.';

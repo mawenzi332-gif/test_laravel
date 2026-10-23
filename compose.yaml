@@ -19,6 +19,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: php-development
     image: comments-app:local
     working_dir: /var/www/html
     command: sh -c "composer install --no-interaction --prefer-dist && exec php-fpm"

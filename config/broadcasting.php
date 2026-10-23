@@ -1,7 +1,9 @@
 <?php
 
 return [
-    'default' => env('BROADCAST_CONNECTION', 'reverb'),
+    // Channel registration runs during Laravel bootstrap, including package discovery.
+    // Leave broadcasting inert when no runtime connection has been explicitly configured.
+    'default' => env('BROADCAST_CONNECTION', 'null'),
 
     'connections' => [
         'reverb' => [

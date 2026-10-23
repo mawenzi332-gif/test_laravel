@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withBroadcasting(__DIR__.'/../routes/channels.php')
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(at: 'REMOTE_ADDR');
         $middleware->statefulApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {

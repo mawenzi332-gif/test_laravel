@@ -1,0 +1,73 @@
+erDiagram
+    users ||--o{ comments : authors
+    comments ||--o{ comments : parent
+    comments ||--o{ comments : root
+
+    users {
+        bigint_unsigned id PK
+        varchar name
+        varchar email UK
+        text home_page
+        varchar password
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    comments {
+        bigint_unsigned id PK
+        bigint_unsigned user_id FK
+        bigint_unsigned parent_id FK
+        bigint_unsigned root_id FK
+        varchar guest_name
+        varchar guest_email
+        text guest_home_page
+        mediumtext body_html
+        timestamp edited_at
+        varchar deletion_type
+        timestamp deleted_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    media {
+        bigint_unsigned id PK
+        varchar model_type
+        bigint_unsigned model_id
+        char uuid UK
+        varchar collection_name
+        varchar name
+        varchar file_name
+        varchar mime_type
+        varchar disk
+        varchar conversions_disk
+        bigint_unsigned size
+        json manipulations
+        json custom_properties
+        json generated_conversions
+        json responsive_images
+        int_unsigned order_column
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    password_reset_tokens {
+        varchar email PK
+        varchar token
+        timestamp created_at
+    }
+
+    failed_jobs {
+        bigint_unsigned id PK
+        varchar uuid UK
+        text connection
+        text queue
+        longtext payload
+        longtext exception
+        timestamp failed_at
+    }
+
+    migrations {
+        int_unsigned id PK
+        varchar migration
+        int batch
+    }

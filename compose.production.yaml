@@ -1,0 +1,181 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web-runtime
+      args: &frontend-build-args
+        VITE_REVERB_APP_KEY: ${REVERB_APP_KEY:?Set REVERB_APP_KEY in .env.production}
+        VITE_REVERB_HOST: ${APP_HOST:?Set APP_HOST in .env.production}
+        VITE_REVERB_PORT: 443
+        VITE_REVERB_SCHEME: https
+        VITE_NOCAPTCHA_SITEKEY: ${NOCAPTCHA_SITEKEY:?Set NOCAPTCHA_SITEKEY in .env.production}
+        VITE_MEDIA_IMAGE_MAX_MB: ${MEDIA_IMAGE_MAX_MB:-10}
+        VITE_APP_NAME: ${APP_NAME:-Comments}
+    image: comments-web:${IMAGE_TAG:-production}
+    ports:
+      - "127.0.0.1:${HTTP_PORT:-8080}:80"
+    depends_on:
+      app:
+        condition: service_healthy
+      reverb:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/up || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: php-production
+      args: *frontend-build-args
+    image: comments-app:${IMAGE_TAG:-production}
+    env_file: ${PRODUCTION_ENV_FILE:-.env.production}
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      REVERB_HOST: reverb
+      REVERB_PORT: 8080
+      REVERB_SCHEME: http
+      MAIL_MAILER: smtp
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_SCHEME: ${MAIL_SCHEME:-tls}
+      QUEUE_CONNECTION: rabbitmq
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      APP_DEBUG: "false"
+      APP_ENV: production
+      APP_URL: https://${APP_HOST:?Set APP_HOST in .env.production}
+    volumes:
+      - app_storage:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 9000) ? 0 : 1);"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  migrate:
+    image: comments-app:${IMAGE_TAG:-production}
+    env_file: ${PRODUCTION_ENV_FILE:-.env.production}
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      APP_ENV: production
+      APP_DEBUG: "false"
+    command: ["php", "artisan", "migrate", "--force"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    profiles: ["operations"]
+
+  queue-worker:
+    image: comments-app:${IMAGE_TAG:-production}
+    user: www-data
+    env_file: ${PRODUCTION_ENV_FILE:-.env.production}
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      REVERB_HOST: reverb
+      REVERB_PORT: 8080
+      REVERB_SCHEME: http
+      APP_ENV: production
+      APP_DEBUG: "false"
+    command: ["php", "artisan", "queue:work", "rabbitmq", "--queue=broadcasts,mail", "--sleep=1", "--tries=3", "--backoff=10", "--timeout=90"]
+    volumes:
+      - app_storage:/var/www/html/storage
+    depends_on:
+      app:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  reverb:
+    image: comments-app:${IMAGE_TAG:-production}
+    user: www-data
+    env_file: ${PRODUCTION_ENV_FILE:-.env.production}
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      APP_ENV: production
+      APP_DEBUG: "false"
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    volumes:
+      - app_storage:/var/www/html/storage
+    depends_on:
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:?Set DB_DATABASE in .env.production}
+      MYSQL_USER: ${DB_USERNAME:?Set DB_USERNAME in .env.production}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.production}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env.production}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env.production}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env.production}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  app_storage:
+  mysql_data:
+  redis_data:
+  rabbitmq_data:

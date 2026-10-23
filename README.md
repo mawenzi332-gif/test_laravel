@@ -109,7 +109,7 @@ Guest указывает имя и e-mail при публикации. Авто�
 
 Publication requests require `g-recaptcha-response`. Guests also submit `guest_name`, `guest_email`, optional `guest_home_page`, and `text`; authenticated users submit only `text` and derive author fields from their profile. Both can submit `attachments[]` (0–3 files). Reply requests add `parent_id`. Update requests can retain existing files with `attachments_to_keep[]` and add replacements with `attachments[]`; the final set is limited to three. Successful writes return the comment resource, including per-request `can_edit`/`can_delete` flags and attachment read URLs. Preview takes only `text`; draft files remain in the browser until publication.
 
-Published attachments use the private `local` disk. `MEDIA_IMAGE_MAX_MB` sets the configurable image upload limit (default 10 MB); TXT files are limited to 100 KB. Synchronous previews use Imagick and fit within 320×240 without upscaling; GIF previews use their first frame. TXT reads use a download disposition with `nosniff`; deleted comments and their attachments cannot be fetched.
+Published attachments use the private `local` disk. `MEDIA_IMAGE_MAX_MB` sets the application-level image upload limit (default 10 MB); PHP and Nginx accept request bodies up to 32 MB, while Laravel enforces the configured per-image limit. TXT files are limited to 100 KB. Synchronous previews use Imagick and fit within 320×240 without upscaling; GIF previews use their first frame. TXT reads use a download disposition with `nosniff`; deleted comments and their attachments cannot be fetched.
 
 ## Redis cache, queues and realtime
 
@@ -150,6 +150,43 @@ docker compose exec vite npm run build
 docker compose exec app php artisan test
 docker compose exec app vendor/bin/pint --test
 ```
+
+## Production Docker и deployment
+
+Production build использует multi-stage `Dockerfile`: Node собирает статические Vue assets, Composer устанавливает production-only dependencies, PHP-FPM запускается из PHP runtime image, а отдельный Nginx image обслуживает assets и проксирует API/WebSocket. Vite dev server и development-only Mailpit в production Compose не запускаются. Laravel использует `null` как fallback broadcaster при bootstrap без runtime-конфигурации, поэтому `composer install` и `package:discover` не требуют Reverb credentials; dev Compose и `.env.production.example` явно выбирают `BROADCAST_CONNECTION=reverb`.
+
+Для Linux VM/VPS с Docker Compose v2:
+
+1. Установите Docker Engine и Compose plugin, настройте DNS и TLS на Nginx ingress/reverse proxy или managed load balancer. Публичный HTTPS endpoint должен проксировать HTTP к Compose `web` и передавать `X-Forwarded-Proto: https`; WebSocket путь `/app/` также должен поддерживать Upgrade. Разрешайте доступ к backend порту только от TLS ingress.
+2. Скопируйте `.env.production.example` в `.env.production`. Задайте домен в `APP_HOST`/`APP_URL`, сгенерируйте отдельные случайные пароли MySQL/RabbitMQ и Reverb credentials, получите production reCAPTCHA v2 keys, заполните внешний SMTP provider и оставшиеся настройки. Получите production `APP_KEY` командой `docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps app php artisan key:generate --show` и запишите выведенное значение в `.env.production`.
+3. Не храните `.env.production` в Git или Docker image. Передайте этот файл по защищённому каналу на VM и ограничьте доступ к нему.
+4. На сервере соберите образы и примените migrations до переключения web traffic:
+
+   ```bash
+   docker compose --env-file .env.production -f compose.production.yaml build
+   docker compose --env-file .env.production -f compose.production.yaml up -d mysql redis rabbitmq
+   docker compose --env-file .env.production -f compose.production.yaml --profile operations run --rm migrate
+   docker compose --env-file .env.production -f compose.production.yaml up -d
+   docker compose --env-file .env.production -f compose.production.yaml ps
+   curl --fail http://localhost:8080/up
+   curl --fail 'http://localhost:8080/api/v1/comments?page=1&sort_by=date&direction=desc'
+   ```
+
+5. `web` публикует host port `HTTP_PORT` (по умолчанию 8080) только на `127.0.0.1`; подключите к нему TLS ingress на том же VPS. Например, host-level Caddy может принимать публичные HTTP/HTTPS запросы на 80/443 и проксировать их на `127.0.0.1:8080`. Такая привязка не оставляет публичный HTTP обход TLS ingress. Laravel доверяет forwarded headers только от непосредственного FastCGI peer; `web` обслуживает Vue assets, Laravel HTTP и Reverb WebSocket path, TLS завершается на ingress. Queue worker и Reverb работают в контейнерах от `www-data`; MySQL, Redis, RabbitMQ и PHP-FPM остаются во внутренней Docker network, а media и stateful data хранятся в named volumes.
+
+Для каждого релиза соберите image с новым `IMAGE_TAG`, запустите migration service один раз, затем обновите app/web/worker/Reverb сервисы. До обновлений делайте и проверяйте резервные копии MySQL и media volume. Не выполняйте `docker compose down -v` в production: эта команда удалит persistent data. Письма отправляются через SMTP provider; Mailpit предназначен только для local development.
+
+**Текущий production deployment (2026-10-23):** QA сайт доступен по адресу [[QA endpoint omitted]]([QA endpoint omitted]). На Ubuntu 24.04/VPS запущен описанный production Compose stack; публичный TLS завершается на host-level Caddy, Docker web доступен только на `127.0.0.1:8080`, firewall открыт для SSH/HTTP/HTTPS. `/`, `/up` и comments API возвращают HTTP 200 с проверкой TLS; HTTP перенаправляется на HTTPS, WebSocket handshake возвращает 101. Это временный QA deployment на IP-based `sslip.io` hostname, не production SLA/backup guarantee. Реальный CAPTCHA challenge и отправка письма не проверялись end-to-end; SMTP-подключение проверено на уровне TCP.
+
+## Database diagram
+
+Файл [`docs/diagrams/database-schema.sql`](docs/diagrams/database-schema.sql) содержит MySQL DDL, полученный из final Laravel migrations. В MySQL Workbench выберите **File → Import → Reverse Engineer MySQL Create Script**, укажите этот файл и сохраните созданную модель. Self-relations `comments.parent_id/root_id → comments.id` отображаются как FK; `media.model_type/model_id` остаётся polymorphic logical relation без FK к `comments`.
+
+## Performance и scaling
+
+TASK-010 quality report содержит локальные query-count проверки, MySQL 8.4 `EXPLAIN`, security evidence и пределы измерений. Laravel Debugbar не добавлялся: количество SQL-запросов проверяется focused test, а планы запросов исследованы через MySQL `EXPLAIN`. Для comments page cache miss выполняются 5 SQL queries независимо от увеличения reply count с 10 до 18; database plan на малом наборе использовал утверждённые root/tree indexes. Это подтверждает форму запросов, но не production capacity; p95 latency и load test не измерялись.
+
+Путь масштабирования от одного instance до 1,000,000 comments и 100,000 users/day описан в [`docs/reports/TASK-011-scaling-and-acceptance.md`](docs/reports/TASK-011-scaling-and-acceptance.md): stateless PHP-FPM за load balancer, MySQL index/query analysis, затем по evidence — ресурсы/read replicas, HA Redis, больше RabbitMQ workers, Reverb nodes с shared Redis и S3-compatible media storage. Эти целевые объёмы — planning targets; load test на таких объёмах не проводился.
 
 ## Технологии и зависимости
 
