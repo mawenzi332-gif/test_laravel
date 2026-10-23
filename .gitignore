@@ -4,6 +4,8 @@
 !/.env.example
 !/.env.production.example
 /.aws/
+/.server-access/
+/AGENTS.md
 
 # PHP and frontend dependencies
 /vendor/

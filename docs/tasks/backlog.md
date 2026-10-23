@@ -836,6 +836,53 @@ TASK-006, TASK-009.
 
 ---
 
+## [x] TASK-014 — Make the regression suite independent of local APP_KEY
+
+### Goal
+
+Исправить GitHub Actions regression suite, чтобы auth-тесты проходили в чистом checkout без `.env`.
+
+### Scope
+
+- Задать безопасный фиксированный test-only `APP_KEY` в GitHub Actions job environment.
+- Подтвердить, что regression suite проходит с пустым внешним `APP_KEY`.
+
+### Acceptance criteria
+
+- Regression suite не зависит от локального `.env` или production credentials.
+- `php artisan test --compact` проходит с тестовой конфигурацией.
+- Изменение не затрагивает runtime-конфигурацию приложения.
+
+### Dependencies
+
+TASK-010.
+
+---
+
+## [x] TASK-015 — Remove local access and agent files from repository tracking
+
+### Goal
+
+Keep local server-access instructions and agent guidance out of the repository's current tracked files.
+
+### Scope
+
+- Remove root `versions.md` from the repository.
+- Ignore root `AGENTS.md` and stop tracking it while preserving the local copy.
+- Confirm `.server-access/` remains ignored and contains no tracked files.
+
+### Acceptance criteria
+
+- `versions.md` is absent from the working tree and Git index.
+- `AGENTS.md` remains available locally but is ignored and no longer tracked.
+- `.server-access/` is ignored and no files beneath it are tracked.
+
+### Dependencies
+
+None.
+
+---
+
 # Recommended execution order
 
 ```text

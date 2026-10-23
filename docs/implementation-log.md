@@ -2,6 +2,100 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-015 — Remove local access and agent files from repository tracking
+
+**Статус:** принято
+**Дата:** 2026-10-23
+
+### Что реализовано
+
+- Удалён из рабочей копии и Git index корневой `versions.md` с локальными инструкциями доступа.
+- Корневой `AGENTS.md` исключён из Git: локальная копия сохранена, добавлено правило `/AGENTS.md` в `.gitignore`.
+- Проверено, что `.server-access/` уже игнорируется и внутри нет отслеживаемых Git файлов.
+
+### Как это реализовано
+
+`AGENTS.md` был tracked, поэтому правило `.gitignore` само по себе не исключало бы его из будущих коммитов. Файл снят с отслеживания при сохранении на диске; `.server-access/` остаётся защищён текущим корневым ignore-правилом.
+
+### Основные изменённые области
+
+- `.gitignore`
+- `versions.md` (удалён)
+- `AGENTS.md` (снят с Git tracking, локальный файл сохранён)
+- `docs/tasks/backlog.md`
+- `docs/tasks/completed/TASK-015-repository-local-files.md`
+- `docs/implementation-log.md`
+
+### Проверки
+
+- `git ls-files AGENTS.md versions.md .server-access` — файлы не отслеживаются после изменений.
+- `git check-ignore -v AGENTS.md .server-access/example` — оба пути сопоставляются правилам `.gitignore`.
+- `git diff --check` — passed.
+
+### Документация
+
+- README: без изменений.
+- OpenAPI: без изменений.
+- Другое: добавлены task-spec и backlog entry.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет; задача касается только состава файлов репозитория.
+
+### Известные ограничения / нерешённые вопросы
+
+- Удаление `versions.md` из текущего дерева не удаляет его из предыдущих Git commits.
+- Снятие `AGENTS.md` с отслеживания означает, что его локальные инструкции не попадут в публичный репозиторий.
+
+### Предлагаемый commit
+
+`chore(TASK-014, TASK-015): fix CI and exclude local files`
+
+## TASK-014 — Make the regression suite independent of local APP_KEY
+
+**Статус:** принято
+**Дата:** 2026-10-23
+
+### Что реализовано
+
+- Regression suite в GitHub Actions получил фиксированный test-only `APP_KEY` на уровне job environment.
+- Устранена зависимость auth-тестов от локального `.env`, которого нет в чистом GitHub checkout.
+
+### Как это реализовано
+
+`php artisan test` загружает Laravel до того, как PHPUnit применяет значения из `phpunit.xml`. В локальной среде без `APP_KEY` это давало `MissingAppKeyException` в 9 auth/profile тестах. Тестовый ключ теперь задан в environment GitHub Actions job, поэтому доступен уже во время Artisan bootstrap. Значение предназначено только для CI и не меняет secrets или runtime-конфигурацию.
+
+### Основные изменённые области
+
+- `.github/workflows/quality.yml`
+- `docs/tasks/backlog.md`
+- `docs/tasks/completed/TASK-014-ci-test-app-key.md`
+- `docs/implementation-log.md`
+
+### Проверки
+
+- `docker compose exec -T -e APP_KEY=base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY= app php artisan test --compact` — 56 tests / 349 assertions passed.
+- `git diff --check` — passed.
+
+### Документация
+
+- README: без изменений; существующая CI-инструкция остаётся верной.
+- OpenAPI: без изменений.
+- Другое: создан follow-up task-spec и обновлён backlog.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет.
+
+### Известные ограничения / нерешённые вопросы
+
+- Hosted GitHub Actions run не перезапускался; он выполнится после пользовательского push.
+- Существующее незакоммиченное изменение `.gitignore` сохранено и не входит в TASK-014.
+
+### Предлагаемый commit
+
+`chore(TASK-014, TASK-015): fix CI and exclude local files`
+
 ## TASK-013 — Production integrations and public deployment info
 
 **Статус:** принято

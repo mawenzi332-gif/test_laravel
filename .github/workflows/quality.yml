@@ -7,6 +7,9 @@ on:
 jobs:
   backend-and-contract:
     runs-on: ubuntu-latest
+    env:
+      # Test-only key: artisan test bootstraps Laravel before PHPUnit reads its XML config.
+      APP_KEY: base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
     services:
       mysql:
         image: mysql:8.4
