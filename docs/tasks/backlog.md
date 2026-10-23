@@ -883,6 +883,31 @@ None.
 
 ---
 
+## [?] TASK-016 — Make the regression suite independent of local runtime state
+
+### Goal
+
+Make the GitHub Actions regression suite pass from a clean checkout without depending on a running Reverb server or locally-created Laravel view-cache directories.
+
+### Scope
+
+- Fake the broadcast job in comment publication feature tests while preserving dedicated queue dispatch coverage.
+- Keep the Blade compiled-view directory present in a clean checkout while ignoring generated compiled views.
+- Verify the full regression suite and clean-checkout behavior locally.
+
+### Acceptance criteria
+
+- Comment publication feature tests do not create a real Reverb broadcaster or send network requests.
+- Existing infrastructure test still verifies `BroadcastCommentCreated` queue, retries, and backoff.
+- A fresh Git checkout contains a usable `storage/framework/views` directory while generated view files remain ignored.
+- `php artisan test --compact` passes.
+
+### Dependencies
+
+TASK-010, TASK-014.
+
+---
+
 # Recommended execution order
 
 ```text

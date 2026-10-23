@@ -21,7 +21,7 @@
 /storage/framework/cache/
 /storage/framework/sessions/
 /storage/framework/testing/
-/storage/framework/views/
+/storage/framework/views/*
 /bootstrap/cache/*.php
 
 # Test output and local logs

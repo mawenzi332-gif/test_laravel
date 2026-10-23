@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\BroadcastCommentCreated;
 use App\Models\Comment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
 use Tests\TestCase;
@@ -17,6 +19,7 @@ class CommentPublicationLifecycleTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Queue::fake([BroadcastCommentCreated::class]);
         Storage::fake('local');
     }
 

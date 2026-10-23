@@ -2,6 +2,56 @@
 
 Здесь фиксируются фактические изменения по задачам на русском языке. Статус каждой задачи соответствует её lifecycle в `docs/tasks/backlog.md`.
 
+## TASK-016 — Make the regression suite independent of local runtime state
+
+**Статус:** готово к ревью
+**Дата:** 2026-10-23
+
+### Что реализовано
+
+- Изолирован `BroadcastCommentCreated` в тестах публикации комментариев, чтобы suite не создавал реальный Reverb broadcaster.
+- Сохранён каталог `storage/framework/views` в чистом checkout; сгенерированные Blade-файлы по-прежнему игнорируются.
+
+### Как это реализовано
+
+`QUEUE_CONNECTION=sync` в `phpunit.xml` исполнял broadcast job прямо во время feature-тестов, хотя тесты проверяют публикацию комментария, а не сетевую отправку. Теперь в `CommentPublicationLifecycleTest` подменяется только эта job; отдельные assertions `CommentInfrastructureTest` по-прежнему проверяют очередь, retries и backoff. Ранее весь `storage/framework/views` игнорировался, из-за чего `realpath()` возвращал `false` на свежем runner. Добавлен placeholder `.gitignore` и правило игнорирования только содержимого каталога.
+
+### Основные изменённые области
+
+- `.gitignore`
+- `storage/framework/views/.gitignore`
+- `tests/Feature/CommentPublicationLifecycleTest.php`
+- `docs/tasks/backlog.md`
+- `docs/tasks/active/TASK-016-ci-clean-runtime.md`
+- `docs/implementation-log.md`
+
+### Проверки
+
+- `docker compose exec -T app php artisan test --compact --filter='CommentPublicationLifecycleTest|SpaAccountRoutesTest|CommentInfrastructureTest'` — 19 tests / 129 assertions passed.
+- `docker compose exec -T app php artisan test --compact` — 56 tests / 349 assertions passed.
+- Полный suite в изолированной копии без `.env` и игнорируемых framework runtime directories — 56 tests, exit code 0; PHPUnit сообщил non-fatal Dotenv warnings из-за намеренно отсутствующего `.env`.
+- `docker compose exec -T app vendor/bin/pint --test` — 77 files passed.
+- `git diff --check` — passed.
+- `git check-ignore -v --no-index storage/framework/views/.gitignore storage/framework/views/generated.php` — placeholder не игнорируется, сгенерированный файл игнорируется.
+
+### Документация
+
+- README: без изменений.
+- OpenAPI: без изменений.
+- Другое: backlog и task-spec обновлены.
+
+### Отклонения от SOW / Architecture / DB
+
+Нет.
+
+### Известные ограничения / нерешённые вопросы
+
+- Нового hosted GitHub Actions run ещё нет; он появится после пользовательского commit и push.
+
+### Предлагаемый commit
+
+`fix(TASK-016): isolate regression tests from local runtime state`
+
 ## TASK-015 — Remove local access and agent files from repository tracking
 
 **Статус:** принято
@@ -89,7 +139,7 @@
 
 ### Известные ограничения / нерешённые вопросы
 
-- Hosted GitHub Actions run не перезапускался; он выполнится после пользовательского push.
+- После push commit `e58a5dc` hosted run `Quality #5` завершился ошибкой из-за отсутствующих Reverb credentials в синхронно исполняемой очереди и несуществующего Blade view-cache path; исправление выполнено в TASK-016.
 - Существующее незакоммиченное изменение `.gitignore` сохранено и не входит в TASK-014.
 
 ### Предлагаемый commit
