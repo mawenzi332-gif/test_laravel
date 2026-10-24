@@ -4,13 +4,14 @@
 
 ## TASK-016 — Make the regression suite independent of local runtime state
 
-**Статус:** готово к ревью
-**Дата:** 2026-10-23
+**Статус:** принято
+**Дата:** 2026-10-24
 
 ### Что реализовано
 
 - Изолирован `BroadcastCommentCreated` в тестах публикации комментариев, чтобы suite не создавал реальный Reverb broadcaster.
 - Сохранён каталог `storage/framework/views` в чистом checkout; сгенерированные Blade-файлы по-прежнему игнорируются.
+- SPA shell route test изолирован от Vite manifest: он проверяет HTTP-ответ и точку монтирования Vue без зависимости от предварительной frontend-сборки.
 
 ### Как это реализовано
 
@@ -21,8 +22,9 @@
 - `.gitignore`
 - `storage/framework/views/.gitignore`
 - `tests/Feature/CommentPublicationLifecycleTest.php`
+- `tests/Feature/SpaAccountRoutesTest.php`
 - `docs/tasks/backlog.md`
-- `docs/tasks/active/TASK-016-ci-clean-runtime.md`
+- `docs/tasks/completed/TASK-016-ci-clean-runtime.md`
 - `docs/implementation-log.md`
 
 ### Проверки
@@ -30,7 +32,13 @@
 - `docker compose exec -T app php artisan test --compact --filter='CommentPublicationLifecycleTest|SpaAccountRoutesTest|CommentInfrastructureTest'` — 19 tests / 129 assertions passed.
 - `docker compose exec -T app php artisan test --compact` — 56 tests / 349 assertions passed.
 - Полный suite в изолированной копии без `.env` и игнорируемых framework runtime directories — 56 tests, exit code 0; PHPUnit сообщил non-fatal Dotenv warnings из-за намеренно отсутствующего `.env`.
+- Clean checkout из tracked-файлов без `.env` и `public/build/manifest.json`, PHP 8.4.27: `php artisan test --compact` — 52 passed, 4 skipped, 338 assertions.
+- Тот же clean checkout: `php artisan test --compact --filter=SpaAccountRoutesTest` — 1 passed, 10 assertions.
 - `docker compose exec -T app vendor/bin/pint --test` — 77 files passed.
+- `vendor/bin/pint --test` под PHP 8.4.27 — passed.
+- `npm run build -- --outDir /tmp/comments-quality-build` — passed.
+- После `php artisan migrate --force` на временной SQLite-базе: `php artisan scramble:export --path=/tmp/openapi.json --fail-on-unknown` и `php scripts/check-openapi.php /tmp/openapi.json` — passed, 11 paths / 14 operations.
+- MySQL CHECK-constraint тест не запускался локально: в этом окружении нет MySQL service; GitHub workflow поднимает её отдельным service container.
 - `git diff --check` — passed.
 - `git check-ignore -v --no-index storage/framework/views/.gitignore storage/framework/views/generated.php` — placeholder не игнорируется, сгенерированный файл игнорируется.
 
@@ -46,11 +54,21 @@
 
 ### Известные ограничения / нерешённые вопросы
 
-- Нового hosted GitHub Actions run ещё нет; он появится после пользовательского commit и push.
+- Hosted GitHub Actions run для последнего исправления ещё не запускался; он появится после пользовательского commit и push.
 
 ### Предлагаемый commit
 
 `fix(TASK-016): isolate regression tests from local runtime state`
+
+### Review iteration 1
+
+- Логи GitHub `Quality #6` показали, что ошибки Reverb и каталога Blade views устранены, но `SpaAccountRoutesTest` падал при рендеринге `@vite`: в workflow тесты запускались до frontend build, поэтому `public/build/manifest.json` отсутствовал.
+- В тест добавлен `$this->withoutVite()`: он проверяет HTTP-ответ и SPA mount point, а не сборку JS/CSS. Сначала PHP/Docker в окружении отсутствовали; затем для проверки был поднят изолированный PHP 8.4.27 runtime в `/tmp`. Focused test, полный suite из clean checkout и Pint прошли.
+
+### Финализация после approval
+
+- Пользователь одобрил TASK-016; task-spec перенесена в `completed/`, marker backlog установлен в `[x]`, статус записи — `принято`.
+- Commit не создавался; изменения готовы к пользовательскому commit.
 
 ## TASK-015 — Remove local access and agent files from repository tracking
 

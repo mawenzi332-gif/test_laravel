@@ -883,7 +883,7 @@ None.
 
 ---
 
-## [?] TASK-016 — Make the regression suite independent of local runtime state
+## [x] TASK-016 — Make the regression suite independent of local runtime state
 
 ### Goal
 
